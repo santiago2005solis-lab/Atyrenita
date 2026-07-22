@@ -659,7 +659,6 @@ export default function AppPage() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Sistema web empresarial</p>
             <h2>{activeModuleTitle}</h2>
           </div>
           <div className="topbar-status">
@@ -1503,42 +1502,32 @@ function FinanceModule({
     </section>
   );
 
-  const activeBlockLabel =
-    financeBlockDefinitions.find((block) => block.id === activeFinanceBlock)?.label ?? "Resumen";
-
   return (
     <>
+      <div
+        className="finance-block-tabs finance-block-tabs-main"
+        role="tablist"
+        aria-label="Bloques financieros"
+      >
+        {financeBlockDefinitions.map((block) => (
+          <button
+            aria-selected={activeFinanceBlock === block.id}
+            className={activeFinanceBlock === block.id ? "active" : ""}
+            key={block.id}
+            onClick={() => setActiveFinanceBlock(block.id)}
+            role="tab"
+            type="button"
+          >
+            {block.label}
+          </button>
+        ))}
+      </div>
+
       <section className="kpi-grid" aria-label="Indicadores financieros">
         <KpiCard label="Saldo neto filtrado" value={money(financeReport.balance)} />
         <KpiCard label="Ingresos" value={money(financeReport.income)} />
         <KpiCard label="Egresos" tone="warning" value={money(financeReport.expense)} />
         <KpiCard label="Transferencias" tone="blue" value={money(financeReport.transfer)} />
-      </section>
-
-      <section className="panel finance-block-shell">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Bloque activo</p>
-            <h3>{activeBlockLabel}</h3>
-          </div>
-          <span>
-            {financeReport.filtered.length} registros | {inactiveCount} anulados
-          </span>
-        </div>
-        <div className="finance-block-tabs" role="tablist" aria-label="Bloques financieros">
-          {financeBlockDefinitions.map((block) => (
-            <button
-              aria-selected={activeFinanceBlock === block.id}
-              className={activeFinanceBlock === block.id ? "active" : ""}
-              key={block.id}
-              onClick={() => setActiveFinanceBlock(block.id)}
-              role="tab"
-              type="button"
-            >
-              {block.label}
-            </button>
-          ))}
-        </div>
       </section>
 
       {activeFinanceBlock === "resumen" && (

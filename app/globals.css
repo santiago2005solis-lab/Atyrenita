@@ -521,14 +521,15 @@ button:disabled {
   grid-template-columns: minmax(320px, 420px) minmax(520px, 1fr);
 }
 
-.finance-block-shell {
-  margin-bottom: 18px;
-}
-
 .finance-block-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.finance-block-tabs-main {
+  margin-top: -12px;
+  margin-bottom: 18px;
 }
 
 .finance-block-tabs button {

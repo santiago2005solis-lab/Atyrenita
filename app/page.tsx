@@ -18,8 +18,19 @@ import {
 } from "@/lib/company-data";
 import { canEditModule, canReadModule, type AppModule } from "@/lib/permissions";
 
-type ModuleId = Extract<AppModule, "finanzas" | "deposito" | "rrhh">;
+type ProtectedModuleId = Extract<AppModule, "finanzas" | "deposito" | "rrhh">;
+type ModuleId = "inicio" | ProtectedModuleId;
 type SavingTarget = "finance" | "item" | "inventory-movement" | null;
+
+type DashboardActivity = {
+  amount?: number;
+  date: string;
+  detail: string;
+  id: string;
+  module: string;
+  title: string;
+  tone?: "negative" | "positive";
+};
 
 type FinanceForm = {
   amount: string;
@@ -99,14 +110,16 @@ const initialInventoryMovementForm: InventoryMovementForm = {
   unitCost: "",
 };
 
-const moduleDefinitions: Array<{ id: ModuleId; label: string; mark: string }> = [
+const protectedModuleDefinitions: Array<{ id: ProtectedModuleId; label: string; mark: string }> = [
   { id: "finanzas", label: "Finanzas", mark: "F" },
   { id: "deposito", label: "Deposito", mark: "D" },
   { id: "rrhh", label: "Recursos Humanos", mark: "RH" },
 ];
 
+const homeModule = { id: "inicio" as const, label: "Inicio", mark: "IN" };
+
 export default function AppPage() {
-  const [activeModule, setActiveModule] = useState<ModuleId>("finanzas");
+  const [activeModule, setActiveModule] = useState<ModuleId>("inicio");
   const [data, setData] = useState<AppData>(demoData);
   const [financeForm, setFinanceForm] = useState<FinanceForm>(initialFinanceForm);
   const [itemForm, setItemForm] = useState<ItemForm>(initialItemForm);
@@ -153,14 +166,21 @@ export default function AppPage() {
   const visibleModules = useMemo(
     () =>
       data.currentUser
-        ? moduleDefinitions.filter((module) => canReadModule(data.currentUser, module.id))
-        : moduleDefinitions,
+        ? [
+            homeModule,
+            ...protectedModuleDefinitions.filter((module) =>
+              canReadModule(data.currentUser, module.id),
+            ),
+          ]
+        : [homeModule, ...protectedModuleDefinitions],
     [data.currentUser],
   );
 
   const effectiveActiveModule =
-    data.currentUser && !canReadModule(data.currentUser, activeModule)
-      ? (visibleModules[0]?.id ?? "finanzas")
+    data.currentUser &&
+    activeModule !== "inicio" &&
+    !canReadModule(data.currentUser, activeModule)
+      ? "inicio"
       : activeModule;
   const canEditFinance = canEditModule(data.currentUser, "finanzas");
   const canEditDeposito = canEditModule(data.currentUser, "deposito");
@@ -262,6 +282,66 @@ export default function AppPage() {
   const selectedItem =
     inventoryReport.filteredItems.find((item) => item.id === movementForm.itemId) ??
     inventoryReport.filteredItems[0];
+
+  const latestActivities = useMemo<DashboardActivity[]>(() => {
+    const itemNames = new Map(data.inventoryItems.map((item) => [item.id, item.name]));
+    const activities: DashboardActivity[] = [];
+
+    if (canReadModule(data.currentUser, "finanzas")) {
+      activities.push(
+        ...data.financeMovements.map((movement) => ({
+          amount: movement.amount,
+          date: movement.createdAt || movement.movementDate,
+          detail: `${movement.cashboxName} | ${movement.category}`,
+          id: `finance-${movement.id}`,
+          module: "Finanzas",
+          title: movement.concept,
+          tone: movement.movementType === "egreso" ? ("negative" as const) : ("positive" as const),
+        })),
+      );
+    }
+
+    if (canReadModule(data.currentUser, "deposito")) {
+      activities.push(
+        ...data.inventoryMovements.map((movement) => ({
+          amount: movement.quantity * movement.unitCost,
+          date: movement.createdAt || movement.movementDate,
+          detail: `${movement.movementType} | ${movement.warehouseName}`,
+          id: `inventory-${movement.id}`,
+          module: "Deposito",
+          title: itemNames.get(movement.itemId) ?? "Movimiento de stock",
+          tone:
+            movement.movementType === "entrada" || movement.movementType === "ajuste"
+              ? ("positive" as const)
+              : ("negative" as const),
+        })),
+      );
+    }
+
+    if (canReadModule(data.currentUser, "rrhh")) {
+      activities.push(
+        ...data.hrEmployees.map((employee) => ({
+          amount: employee.monthlySalary,
+          date: employee.startDate,
+          detail: `${employee.department} | ${employee.status}`,
+          id: `hr-${employee.id}`,
+          module: "Recursos Humanos",
+          title: employee.fullName,
+          tone: "positive" as const,
+        })),
+      );
+    }
+
+    return activities
+      .sort((first, second) => getTimeValue(second.date) - getTimeValue(first.date))
+      .slice(0, 8);
+  }, [
+    data.currentUser,
+    data.financeMovements,
+    data.hrEmployees,
+    data.inventoryItems,
+    data.inventoryMovements,
+  ]);
 
   async function submitFinanceMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -522,13 +602,27 @@ export default function AppPage() {
           {statusMessage}
         </div>
 
-        {visibleModules.length === 0 && (
+        {visibleModules.length === 1 && data.currentUser && (
           <section className="panel">
             <PanelHeading eyebrow="Acceso" title="Sin modulos asignados" />
             <p className="muted-text">
               Su usuario esta activo, pero todavia no tiene permisos asignados.
             </p>
           </section>
+        )}
+
+        {effectiveActiveModule === "inicio" && (
+          <DashboardModule
+            canReadDeposito={canReadModule(data.currentUser, "deposito")}
+            canReadFinance={canReadModule(data.currentUser, "finanzas")}
+            canReadRrhh={canReadModule(data.currentUser, "rrhh")}
+            data={data}
+            financeReport={financeReport}
+            inventoryReport={inventoryReport}
+            latestActivities={latestActivities}
+            money={money}
+            setActiveModule={setActiveModule}
+          />
         )}
 
         {effectiveActiveModule === "finanzas" && canReadModule(data.currentUser, "finanzas") && (
@@ -572,6 +666,148 @@ export default function AppPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function DashboardModule({
+  canReadDeposito,
+  canReadFinance,
+  canReadRrhh,
+  data,
+  financeReport,
+  inventoryReport,
+  latestActivities,
+  money,
+  setActiveModule,
+}: {
+  canReadDeposito: boolean;
+  canReadFinance: boolean;
+  canReadRrhh: boolean;
+  data: AppData;
+  financeReport: {
+    balance: number;
+    expense: number;
+    filtered: FinanceMovement[];
+    income: number;
+    transfer: number;
+  };
+  inventoryReport: {
+    byWarehouse: Array<{
+      items: InventoryItem[];
+      lowStock: number;
+      stockValue: number;
+      warehouse: string;
+    }>;
+    filteredItems: InventoryItem[];
+    lowStock: InventoryItem[];
+    value: number;
+  };
+  latestActivities: DashboardActivity[];
+  money: (value: number) => string;
+  setActiveModule: (module: ModuleId) => void;
+}) {
+  const activeEmployees = data.hrEmployees.filter((employee) => employee.status === "activo");
+  const payroll = activeEmployees.reduce((sum, employee) => sum + employee.monthlySalary, 0);
+  const negativeCashboxes = data.cashboxes.filter((cashbox) => {
+    const balance = data.financeMovements
+      .filter((movement) => movement.cashboxName === cashbox)
+      .reduce(
+        (sum, movement) =>
+          sum + (movement.movementType === "egreso" ? -movement.amount : movement.amount),
+        0,
+      );
+    return balance < 0;
+  });
+
+  return (
+    <>
+      <section className="dashboard-grid" aria-label="Resumen de modulos">
+        <button
+          className="module-summary-card"
+          disabled={!canReadFinance}
+          onClick={() => setActiveModule("finanzas")}
+          type="button"
+        >
+          <span>Finanzas</span>
+          <strong>{canReadFinance ? money(financeReport.balance) : "Sin acceso"}</strong>
+          <small>
+            {financeReport.filtered.length} movimientos | ingresos {money(financeReport.income)}
+          </small>
+        </button>
+
+        <button
+          className="module-summary-card"
+          disabled={!canReadDeposito}
+          onClick={() => setActiveModule("deposito")}
+          type="button"
+        >
+          <span>Deposito</span>
+          <strong>{canReadDeposito ? money(inventoryReport.value) : "Sin acceso"}</strong>
+          <small>
+            {inventoryReport.filteredItems.length} articulos | {inventoryReport.lowStock.length} alertas
+          </small>
+        </button>
+
+        <button
+          className="module-summary-card"
+          disabled={!canReadRrhh}
+          onClick={() => setActiveModule("rrhh")}
+          type="button"
+        >
+          <span>Recursos Humanos</span>
+          <strong>{canReadRrhh ? String(activeEmployees.length) : "Sin acceso"}</strong>
+          <small>Nomina activa {money(payroll)}</small>
+        </button>
+      </section>
+
+      <div className="dashboard-layout">
+        <section className="panel">
+          <PanelHeading eyebrow="Actividad" title="Ultimos movimientos" />
+          <div className="activity-list">
+            {latestActivities.length > 0 ? (
+              latestActivities.map((activity) => (
+                <article className="activity-row" key={activity.id}>
+                  <div>
+                    <span>{activity.module}</span>
+                    <strong>{activity.title}</strong>
+                    <small>{activity.detail}</small>
+                  </div>
+                  <div className="activity-meta">
+                    <time>{formatDate(activity.date)}</time>
+                    {activity.amount !== undefined && (
+                      <em className={activity.tone ?? ""}>{money(activity.amount)}</em>
+                    )}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="muted-text">Todavia no hay actividades para los modulos asignados.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="panel">
+          <PanelHeading eyebrow="Control" title="Alertas generales" />
+          <div className="alert-stack">
+            <article>
+              <span>Stock bajo</span>
+              <strong>{inventoryReport.lowStock.length}</strong>
+              <small>articulos por debajo del minimo</small>
+            </article>
+            <article>
+              <span>Cajas negativas</span>
+              <strong>{negativeCashboxes.length}</strong>
+              <small>{negativeCashboxes[0] ?? "Sin saldos negativos"}</small>
+            </article>
+            <article>
+              <span>Estado de datos</span>
+              <strong>{data.storageMode === "supabase" ? "Supabase" : "Demo"}</strong>
+              <small>{data.storageMessage ?? "Sistema cargado"}</small>
+            </article>
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -1388,6 +1624,13 @@ function calculateLocalStock(
 
 function formatDate(value: string) {
   if (!value) return "";
-  const [year, month, day] = value.split("-");
+  const [year, month, day] = value.slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
+}
+
+function getTimeValue(value: string) {
+  if (!value) return 0;
+  const normalized = value.includes("T") ? value : `${value}T00:00:00`;
+  const time = new Date(normalized).getTime();
+  return Number.isFinite(time) ? time : 0;
 }

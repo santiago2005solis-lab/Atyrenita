@@ -27,6 +27,16 @@ type ProtectedModuleId = Extract<
 >;
 type ModuleId = "inicio" | ProtectedModuleId;
 type SavingTarget = "finance" | "item" | "inventory-movement" | null;
+type FinanceBlockId =
+  | "resumen"
+  | "cajas"
+  | "movimientos"
+  | "plan-cuentas"
+  | "centros-costo"
+  | "pagar"
+  | "cobrar"
+  | "reportes"
+  | "configuracion";
 
 type DashboardActivity = {
   amount?: number;
@@ -136,6 +146,18 @@ const protectedModuleDefinitions: Array<{ id: ProtectedModuleId; label: string; 
 ];
 
 const homeModule = { id: "inicio" as const, label: "Inicio", mark: "IN" };
+
+const financeBlockDefinitions: Array<{ id: FinanceBlockId; label: string }> = [
+  { id: "resumen", label: "Resumen" },
+  { id: "cajas", label: "Cajas" },
+  { id: "movimientos", label: "Movimientos" },
+  { id: "plan-cuentas", label: "Plan de cuentas" },
+  { id: "centros-costo", label: "Centros de costo" },
+  { id: "pagar", label: "Cuentas por pagar" },
+  { id: "cobrar", label: "Cuentas por cobrar" },
+  { id: "reportes", label: "Reportes" },
+  { id: "configuracion", label: "Configuracion" },
+];
 
 export default function AppPage() {
   const [activeModule, setActiveModule] = useState<ModuleId>("inicio");
@@ -1093,6 +1115,397 @@ function FinanceModule({
   setSelectedMonth: (month: string) => void;
   submitFinanceMovement: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const [activeFinanceBlock, setActiveFinanceBlock] = useState<FinanceBlockId>("resumen");
+  const activeMovements = financeReport.filtered.filter((movement) => movement.status === "activo");
+  const inactiveCount = financeReport.filtered.length - activeMovements.length;
+  const latestMovements = financeReport.filtered.slice(0, 6);
+  const expenseMovements = activeMovements.filter((movement) => movement.movementType === "egreso");
+  const incomeMovements = activeMovements.filter((movement) => movement.movementType === "ingreso");
+
+  function summarizeMovements(movements: FinanceMovement[]) {
+    const income = movements
+      .filter((movement) => movement.movementType === "ingreso")
+      .reduce((sum, movement) => sum + movement.amount, 0);
+    const expense = movements
+      .filter((movement) => movement.movementType === "egreso")
+      .reduce((sum, movement) => sum + movement.amount, 0);
+    const transfer = movements
+      .filter((movement) => movement.movementType === "transferencia")
+      .reduce((sum, movement) => sum + movement.amount, 0);
+
+    return {
+      balance: income - expense,
+      count: movements.length,
+      expense,
+      income,
+      transfer,
+    };
+  }
+
+  const moduleSummaries = linkedModules.map((module) => ({
+    label: module,
+    ...summarizeMovements(
+      activeMovements.filter((movement) => movement.linkedModule === module),
+    ),
+  }));
+  const accountSummaries = financeAccounts.map((account) => ({
+    label: account,
+    ...summarizeMovements(
+      activeMovements.filter((movement) => movement.accountName === account),
+    ),
+  }));
+  const costCenterSummaries = costCenters.map((costCenter) => ({
+    label: costCenter,
+    ...summarizeMovements(
+      activeMovements.filter((movement) => movement.costCenterName === costCenter),
+    ),
+  }));
+
+  const movementFormPanel = (
+    <section className="panel">
+      <PanelHeading eyebrow="Financiero" title="Nuevo movimiento de caja" />
+      {!canEdit && (
+        <div className="status-banner locked">
+          Permiso lector: puede consultar reportes, pero no cargar movimientos.
+        </div>
+      )}
+      <form className="movement-form" onSubmit={submitFinanceMovement}>
+        <fieldset className="form-fieldset" disabled={!canEdit || saving === "finance"}>
+          <div className="segmented" role="group" aria-label="Tipo de movimiento">
+            {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
+              <button
+                className={financeForm.movementType === type ? "selected" : ""}
+                key={type}
+                onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
+                type="button"
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          <label>
+            Caja
+            <select
+              onChange={(event) =>
+                setFinanceForm({ ...financeForm, cashboxName: event.target.value })
+              }
+              value={financeForm.cashboxName}
+            >
+              {cashboxes.map((cashbox) => (
+                <option key={cashbox}>{cashbox}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="field-row">
+            <label>
+              Modulo vinculado
+              <select
+                onChange={(event) =>
+                  setFinanceForm({
+                    ...financeForm,
+                    linkedModule: event.target.value as LinkedModule,
+                  })
+                }
+                value={financeForm.linkedModule}
+              >
+                {linkedModules.map((module) => (
+                  <option key={module}>{module}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Cuenta contable
+              <select
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, accountName: event.target.value })
+                }
+                value={financeForm.accountName}
+              >
+                {financeAccounts.map((account) => (
+                  <option key={account}>{account}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Centro de costo
+            <select
+              onChange={(event) =>
+                setFinanceForm({ ...financeForm, costCenterName: event.target.value })
+              }
+              value={financeForm.costCenterName}
+            >
+              {costCenters.map((costCenter) => (
+                <option key={costCenter}>{costCenter}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Concepto
+            <input
+              onChange={(event) =>
+                setFinanceForm({ ...financeForm, concept: event.target.value })
+              }
+              placeholder="Ej. venta, compra, anticipo"
+              value={financeForm.concept}
+            />
+          </label>
+
+          <div className="field-row">
+            <label>
+              Monto
+              <input
+                inputMode="numeric"
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, amount: event.target.value })
+                }
+                placeholder="0"
+                value={financeForm.amount}
+              />
+            </label>
+            <label>
+              Fecha
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, movementDate: event.target.value })
+                }
+                type="date"
+                value={financeForm.movementDate}
+              />
+            </label>
+          </div>
+
+          <div className="field-row">
+            <label>
+              Categoria
+              <select
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, category: event.target.value })
+                }
+                value={financeForm.category}
+              >
+                {financeCategories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Medio
+              <select
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, paymentMethod: event.target.value })
+                }
+                value={financeForm.paymentMethod}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method}>{method}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="field-row">
+            <label>
+              Comprobante
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, documentNumber: event.target.value })
+                }
+                placeholder="Factura, recibo, transferencia"
+                value={financeForm.documentNumber}
+              />
+            </label>
+            <label>
+              Responsable
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, responsible: event.target.value })
+                }
+                placeholder="Persona o sector"
+                value={financeForm.responsible}
+              />
+            </label>
+          </div>
+
+          <label>
+            Contraparte
+            <input
+              onChange={(event) =>
+                setFinanceForm({ ...financeForm, relatedParty: event.target.value })
+              }
+              placeholder="Cliente, proveedor o caja destino"
+              value={financeForm.relatedParty}
+            />
+          </label>
+
+          <div className="field-row">
+            <label>
+              Estado
+              <select
+                onChange={(event) =>
+                  setFinanceForm({
+                    ...financeForm,
+                    status: event.target.value as FinanceMovementStatus,
+                  })
+                }
+                value={financeForm.status}
+              >
+                <option value="activo">activo</option>
+                <option value="anulado">anulado</option>
+              </select>
+            </label>
+            <label>
+              Origen
+              <input readOnly value={financeForm.sourceModule} />
+            </label>
+          </div>
+
+          <label>
+            Notas
+            <input
+              onChange={(event) =>
+                setFinanceForm({ ...financeForm, notes: event.target.value })
+              }
+              placeholder="Detalle interno"
+              value={financeForm.notes}
+            />
+          </label>
+
+          <button className="submit-button" disabled={!canEdit || saving === "finance"} type="submit">
+            {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
+          </button>
+        </fieldset>
+      </form>
+    </section>
+  );
+
+  const reportPanel = (
+    <section className="panel wide">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Reportes</p>
+          <h3>Movimientos financieros</h3>
+        </div>
+        <button type="button" onClick={exportFinanceCsv}>
+          Exportar CSV
+        </button>
+      </div>
+
+      <div className="report-controls">
+        <label>
+          Caja
+          <select
+            onChange={(event) => setSelectedCashbox(event.target.value)}
+            value={selectedCashbox}
+          >
+            <option>Todas</option>
+            {cashboxes.map((cashbox) => (
+              <option key={cashbox}>{cashbox}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Modulo
+          <select
+            onChange={(event) => setSelectedFinanceModule(event.target.value)}
+            value={selectedFinanceModule}
+          >
+            <option>Todos</option>
+            {linkedModules.map((module) => (
+              <option key={module}>{module}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Cuenta
+          <select
+            onChange={(event) => setSelectedFinanceAccount(event.target.value)}
+            value={selectedFinanceAccount}
+          >
+            <option>Todas</option>
+            {financeAccounts.map((account) => (
+              <option key={account}>{account}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Centro de costo
+          <select
+            onChange={(event) => setSelectedCostCenter(event.target.value)}
+            value={selectedCostCenter}
+          >
+            <option>Todos</option>
+            {costCenters.map((costCenter) => (
+              <option key={costCenter}>{costCenter}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Estado
+          <select
+            onChange={(event) => setSelectedFinanceStatus(event.target.value)}
+            value={selectedFinanceStatus}
+          >
+            <option>Todos</option>
+            <option value="activo">activo</option>
+            <option value="anulado">anulado</option>
+          </select>
+        </label>
+        <label>
+          Mes
+          <input
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            type="month"
+            value={selectedMonth}
+          />
+        </label>
+      </div>
+
+      <p className="muted-text">
+        {financeReport.activeCount} movimientos activos en el filtro actual.
+      </p>
+
+      <MovementTable movements={financeReport.filtered} money={money} />
+    </section>
+  );
+
+  const cashboxesPanel = (
+    <section className="panel wide">
+      <PanelHeading eyebrow="Cajas" title="Resumen de las 6 cajas" />
+      <div className="cashbox-grid">
+        {cashboxSummaries.map((summary) => (
+          <article className="cashbox-card" key={summary.cashbox}>
+            <span>{summary.cashbox}</span>
+            <strong className={summary.balance < 0 ? "negative" : "positive"}>
+              {money(summary.balance)}
+            </strong>
+            <dl>
+              <div>
+                <dt>Ingresos</dt>
+                <dd>{money(summary.income)}</dd>
+              </div>
+              <div>
+                <dt>Egresos</dt>
+                <dd>{money(summary.expense)}</dd>
+              </div>
+              <div>
+                <dt>Transferencias</dt>
+                <dd>{money(summary.transfer)}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+
+  const activeBlockLabel =
+    financeBlockDefinitions.find((block) => block.id === activeFinanceBlock)?.label ?? "Resumen";
+
   return (
     <>
       <section className="kpi-grid" aria-label="Indicadores financieros">
@@ -1102,324 +1515,114 @@ function FinanceModule({
         <KpiCard label="Transferencias" tone="blue" value={money(financeReport.transfer)} />
       </section>
 
-      <div className="content-grid finance-layout">
-        <section className="panel">
-          <PanelHeading eyebrow="Financiero" title="Nuevo movimiento de caja" />
-          {!canEdit && (
-            <div className="status-banner locked">
-              Permiso lector: puede consultar reportes, pero no cargar movimientos.
-            </div>
-          )}
-          <form className="movement-form" onSubmit={submitFinanceMovement}>
-            <fieldset className="form-fieldset" disabled={!canEdit || saving === "finance"}>
-              <div className="segmented" role="group" aria-label="Tipo de movimiento">
-                {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
-                  <button
-                    className={financeForm.movementType === type ? "selected" : ""}
-                    key={type}
-                    onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
-                    type="button"
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-
-              <label>
-                Caja
-                <select
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, cashboxName: event.target.value })
-                  }
-                  value={financeForm.cashboxName}
-                >
-                  {cashboxes.map((cashbox) => (
-                    <option key={cashbox}>{cashbox}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="field-row">
-                <label>
-                  Modulo vinculado
-                  <select
-                    onChange={(event) =>
-                      setFinanceForm({
-                        ...financeForm,
-                        linkedModule: event.target.value as LinkedModule,
-                      })
-                    }
-                    value={financeForm.linkedModule}
-                  >
-                    {linkedModules.map((module) => (
-                      <option key={module}>{module}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Cuenta contable
-                  <select
-                    onChange={(event) =>
-                      setFinanceForm({ ...financeForm, accountName: event.target.value })
-                    }
-                    value={financeForm.accountName}
-                  >
-                    {financeAccounts.map((account) => (
-                      <option key={account}>{account}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label>
-                Centro de costo
-                <select
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, costCenterName: event.target.value })
-                  }
-                  value={financeForm.costCenterName}
-                >
-                  {costCenters.map((costCenter) => (
-                    <option key={costCenter}>{costCenter}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Concepto
-                <input
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, concept: event.target.value })
-                  }
-                  placeholder="Ej. venta, compra, anticipo"
-                  value={financeForm.concept}
-                />
-              </label>
-
-            <div className="field-row">
-              <label>
-                Monto
-                <input
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, amount: event.target.value })
-                  }
-                  placeholder="0"
-                  value={financeForm.amount}
-                />
-              </label>
-              <label>
-                Fecha
-                <input
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, movementDate: event.target.value })
-                  }
-                  type="date"
-                  value={financeForm.movementDate}
-                />
-              </label>
-            </div>
-
-            <div className="field-row">
-              <label>
-                Categoria
-                <select
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, category: event.target.value })
-                  }
-                  value={financeForm.category}
-                >
-                  {financeCategories.map((category) => (
-                    <option key={category}>{category}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Medio
-                <select
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, paymentMethod: event.target.value })
-                  }
-                  value={financeForm.paymentMethod}
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method}>{method}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="field-row">
-              <label>
-                Comprobante
-                <input
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, documentNumber: event.target.value })
-                  }
-                  placeholder="Factura, recibo, transferencia"
-                  value={financeForm.documentNumber}
-                />
-              </label>
-              <label>
-                Responsable
-                <input
-                  onChange={(event) =>
-                    setFinanceForm({ ...financeForm, responsible: event.target.value })
-                  }
-                  placeholder="Persona o sector"
-                  value={financeForm.responsible}
-                />
-              </label>
-            </div>
-
-            <label>
-              Contraparte
-              <input
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, relatedParty: event.target.value })
-                }
-                placeholder="Cliente, proveedor o caja destino"
-                value={financeForm.relatedParty}
-              />
-            </label>
-
-            <div className="field-row">
-              <label>
-                Estado
-                <select
-                  onChange={(event) =>
-                    setFinanceForm({
-                      ...financeForm,
-                      status: event.target.value as FinanceMovementStatus,
-                    })
-                  }
-                  value={financeForm.status}
-                >
-                  <option value="activo">activo</option>
-                  <option value="anulado">anulado</option>
-                </select>
-              </label>
-              <label>
-                Origen
-                <input readOnly value={financeForm.sourceModule} />
-              </label>
-            </div>
-
-            <label>
-              Notas
-              <input
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, notes: event.target.value })
-                }
-                placeholder="Detalle interno"
-                value={financeForm.notes}
-              />
-            </label>
-
-              <button className="submit-button" disabled={!canEdit || saving === "finance"} type="submit">
-                {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
-              </button>
-            </fieldset>
-          </form>
-        </section>
-
-        <section className="panel wide">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Reportes</p>
-              <h3>Movimientos por caja</h3>
-            </div>
-            <button type="button" onClick={exportFinanceCsv}>
-              Exportar CSV
+      <section className="panel finance-block-shell">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Bloque activo</p>
+            <h3>{activeBlockLabel}</h3>
+          </div>
+          <span>
+            {financeReport.filtered.length} registros | {inactiveCount} anulados
+          </span>
+        </div>
+        <div className="finance-block-tabs" role="tablist" aria-label="Bloques financieros">
+          {financeBlockDefinitions.map((block) => (
+            <button
+              aria-selected={activeFinanceBlock === block.id}
+              className={activeFinanceBlock === block.id ? "active" : ""}
+              key={block.id}
+              onClick={() => setActiveFinanceBlock(block.id)}
+              role="tab"
+              type="button"
+            >
+              {block.label}
             </button>
-          </div>
+          ))}
+        </div>
+      </section>
 
-          <div className="report-controls">
-            <label>
-              Caja
-              <select
-                onChange={(event) => setSelectedCashbox(event.target.value)}
-                value={selectedCashbox}
-              >
-                <option>Todas</option>
-                {cashboxes.map((cashbox) => (
-                  <option key={cashbox}>{cashbox}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Modulo
-              <select
-                onChange={(event) => setSelectedFinanceModule(event.target.value)}
-                value={selectedFinanceModule}
-              >
-                <option>Todos</option>
-                {linkedModules.map((module) => (
-                  <option key={module}>{module}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Cuenta
-              <select
-                onChange={(event) => setSelectedFinanceAccount(event.target.value)}
-                value={selectedFinanceAccount}
-              >
-                <option>Todas</option>
-                {financeAccounts.map((account) => (
-                  <option key={account}>{account}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Centro de costo
-              <select
-                onChange={(event) => setSelectedCostCenter(event.target.value)}
-                value={selectedCostCenter}
-              >
-                <option>Todos</option>
-                {costCenters.map((costCenter) => (
-                  <option key={costCenter}>{costCenter}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Estado
-              <select
-                onChange={(event) => setSelectedFinanceStatus(event.target.value)}
-                value={selectedFinanceStatus}
-              >
-                <option>Todos</option>
-                <option value="activo">activo</option>
-                <option value="anulado">anulado</option>
-              </select>
-            </label>
-            <label>
-              Mes
-              <input
-                onChange={(event) => setSelectedMonth(event.target.value)}
-                type="month"
-                value={selectedMonth}
-              />
-            </label>
-          </div>
+      {activeFinanceBlock === "resumen" && (
+        <div className="finance-block-grid">
+          <section className="panel">
+            <PanelHeading eyebrow="Resumen" title="Flujo por modulo" />
+            <div className="report-stack">
+              {moduleSummaries.map((summary) => (
+                <article className="report-card" key={summary.label}>
+                  <div>
+                    <strong>{summary.label}</strong>
+                    <span>{summary.count} movimientos</span>
+                  </div>
+                  <strong className={summary.balance < 0 ? "negative" : "positive"}>
+                    {money(summary.balance)}
+                  </strong>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="panel">
+            <PanelHeading eyebrow="Actividad" title="Ultimos movimientos" />
+            <div className="activity-list">
+              {latestMovements.map((movement) => (
+                <article className="activity-row" key={movement.id}>
+                  <div>
+                    <span>{movement.linkedModule}</span>
+                    <strong>{movement.concept}</strong>
+                    <small>
+                      {movement.cashboxName} | {movement.accountName}
+                    </small>
+                  </div>
+                  <div className="activity-meta">
+                    <time>{formatDate(movement.movementDate)}</time>
+                    <em className={movement.movementType === "egreso" ? "negative" : ""}>
+                      {movement.movementType === "egreso" ? "-" : "+"}
+                      {money(movement.amount)}
+                    </em>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+          {cashboxesPanel}
+        </div>
+      )}
 
-          <p className="muted-text">
-            {financeReport.activeCount} movimientos activos en el filtro actual.
-          </p>
+      {activeFinanceBlock === "cajas" && cashboxesPanel}
 
-          <MovementTable movements={financeReport.filtered} money={money} />
-        </section>
+      {activeFinanceBlock === "movimientos" && (
+        <div className="content-grid finance-layout">
+          {movementFormPanel}
+          <section className="panel">
+            <PanelHeading eyebrow="Movimientos" title="Lectura rapida" />
+            <div className="summary-grid">
+              <div>
+                <span>Ingresos activos</span>
+                <strong>{String(incomeMovements.length)}</strong>
+              </div>
+              <div>
+                <span>Egresos activos</span>
+                <strong>{String(expenseMovements.length)}</strong>
+              </div>
+              <div>
+                <span>Anulados filtrados</span>
+                <strong>{String(inactiveCount)}</strong>
+              </div>
+            </div>
+          </section>
+          {reportPanel}
+        </div>
+      )}
 
-        <section className="panel wide">
-          <PanelHeading eyebrow="Cajas" title="Resumen de las 6 cajas" />
-          <div className="cashbox-grid">
-            {cashboxSummaries.map((summary) => (
-              <article className="cashbox-card" key={summary.cashbox}>
-                <span>{summary.cashbox}</span>
-                <strong className={summary.balance < 0 ? "negative" : "positive"}>
-                  {money(summary.balance)}
-                </strong>
+      {activeFinanceBlock === "plan-cuentas" && (
+        <section className="panel">
+          <PanelHeading eyebrow="Plan de cuentas" title="Cuentas contables" />
+          <div className="finance-list-grid">
+            {accountSummaries.map((summary) => (
+              <article className="finance-list-card" key={summary.label}>
+                <div>
+                  <span>Cuenta</span>
+                  <strong>{summary.label}</strong>
+                  <small>{summary.count} movimientos activos</small>
+                </div>
                 <dl>
                   <div>
                     <dt>Ingresos</dt>
@@ -1430,15 +1633,155 @@ function FinanceModule({
                     <dd>{money(summary.expense)}</dd>
                   </div>
                   <div>
-                    <dt>Transferencias</dt>
-                    <dd>{money(summary.transfer)}</dd>
+                    <dt>Saldo</dt>
+                    <dd className={summary.balance < 0 ? "negative" : "positive"}>
+                      {money(summary.balance)}
+                    </dd>
                   </div>
                 </dl>
               </article>
             ))}
           </div>
         </section>
-      </div>
+      )}
+
+      {activeFinanceBlock === "centros-costo" && (
+        <section className="panel">
+          <PanelHeading eyebrow="Centros de costo" title="Costo por sector" />
+          <div className="finance-list-grid">
+            {costCenterSummaries.map((summary) => (
+              <article className="finance-list-card" key={summary.label}>
+                <div>
+                  <span>Centro</span>
+                  <strong>{summary.label}</strong>
+                  <small>{summary.count} movimientos activos</small>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Ingresos</dt>
+                    <dd>{money(summary.income)}</dd>
+                  </div>
+                  <div>
+                    <dt>Egresos</dt>
+                    <dd>{money(summary.expense)}</dd>
+                  </div>
+                  <div>
+                    <dt>Saldo</dt>
+                    <dd className={summary.balance < 0 ? "negative" : "positive"}>
+                      {money(summary.balance)}
+                    </dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {activeFinanceBlock === "pagar" && (
+        <div className="finance-block-grid">
+          <section className="panel">
+            <PanelHeading eyebrow="Cuentas por pagar" title="Compromisos de pago" />
+            <div className="summary-grid">
+              <div>
+                <span>Documentos base</span>
+                <strong>{String(expenseMovements.length)}</strong>
+              </div>
+              <div>
+                <span>Monto estimado</span>
+                <strong>{money(financeReport.expense)}</strong>
+              </div>
+              <div>
+                <span>Estado</span>
+                <strong>Base</strong>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <PanelHeading eyebrow="Proveedores" title="Ultimos egresos" />
+            <div className="report-stack">
+              {expenseMovements.slice(0, 8).map((movement) => (
+                <article className="report-card amber" key={movement.id}>
+                  <div>
+                    <strong>{movement.relatedParty || movement.concept}</strong>
+                    <span>{movement.accountName}</span>
+                  </div>
+                  <strong>{money(movement.amount)}</strong>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeFinanceBlock === "cobrar" && (
+        <div className="finance-block-grid">
+          <section className="panel">
+            <PanelHeading eyebrow="Cuentas por cobrar" title="Ingresos pendientes" />
+            <div className="summary-grid">
+              <div>
+                <span>Documentos base</span>
+                <strong>{String(incomeMovements.length)}</strong>
+              </div>
+              <div>
+                <span>Monto estimado</span>
+                <strong>{money(financeReport.income)}</strong>
+              </div>
+              <div>
+                <span>Estado</span>
+                <strong>Base</strong>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <PanelHeading eyebrow="Clientes" title="Ultimos ingresos" />
+            <div className="report-stack">
+              {incomeMovements.slice(0, 8).map((movement) => (
+                <article className="report-card green" key={movement.id}>
+                  <div>
+                    <strong>{movement.relatedParty || movement.concept}</strong>
+                    <span>{movement.accountName}</span>
+                  </div>
+                  <strong>{money(movement.amount)}</strong>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeFinanceBlock === "reportes" && reportPanel}
+
+      {activeFinanceBlock === "configuracion" && (
+        <div className="finance-block-grid">
+          <section className="panel">
+            <PanelHeading eyebrow="Configuracion" title="Catalogos financieros" />
+            <div className="summary-grid">
+              <div>
+                <span>Cajas</span>
+                <strong>{String(cashboxes.length)}</strong>
+              </div>
+              <div>
+                <span>Cuentas</span>
+                <strong>{String(financeAccounts.length)}</strong>
+              </div>
+              <div>
+                <span>Centros</span>
+                <strong>{String(costCenters.length)}</strong>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <PanelHeading eyebrow="Metodos" title="Medios de pago" />
+            <div className="finance-chip-list">
+              {paymentMethods.map((method) => (
+                <span key={method}>{method}</span>
+              ))}
+            </div>
+          </section>
+          {cashboxesPanel}
+        </div>
+      )}
     </>
   );
 }

@@ -521,6 +521,111 @@ button:disabled {
   grid-template-columns: minmax(320px, 420px) minmax(520px, 1fr);
 }
 
+.finance-block-shell {
+  margin-bottom: 18px;
+}
+
+.finance-block-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finance-block-tabs button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.finance-block-tabs button.active {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+}
+
+.finance-block-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.finance-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.finance-list-card {
+  display: grid;
+  gap: 14px;
+  min-height: 158px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.finance-list-card span,
+.finance-list-card small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.finance-list-card span {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.finance-list-card strong {
+  display: block;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.finance-list-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.finance-list-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.finance-list-card dd {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.finance-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finance-chip-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--foreground);
+  font-weight: 850;
+}
+
 .content-grid.inventory-layout {
   grid-template-columns: repeat(2, minmax(320px, 1fr));
 }
@@ -989,6 +1094,7 @@ th:last-child {
   .content-grid,
   .content-grid.form-layout,
   .content-grid.finance-layout,
+  .finance-block-grid,
   .content-grid.inventory-layout {
     grid-template-columns: 1fr;
   }
@@ -1014,6 +1120,7 @@ th:last-child {
   .kpi-grid,
   .dashboard-grid,
   .flow-chart,
+  .finance-list-grid,
   .lot-grid,
   .cashbox-grid,
   .warehouse-grid,

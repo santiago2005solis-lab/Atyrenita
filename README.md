@@ -43,10 +43,32 @@ La app funciona en modo demo cuando no hay variables de Supabase.
 
 ```bash
 SUPABASE_URL=https://TU-PROYECTO.supabase.co
+SUPABASE_PUBLISHABLE_KEY=TU_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY=TU_SUPABASE_SECRET_KEY
 ```
 
 La clave `SUPABASE_SECRET_KEY` solo debe estar en el servidor, por ejemplo en Vercel Environment Variables. No debe enviarse al navegador. La app tambien acepta `SUPABASE_SERVICE_ROLE_KEY` para proyectos que todavia usen claves legacy.
+
+## Usuarios y permisos
+
+El login usa Supabase Auth. Los permisos internos viven en:
+
+- `app_users`
+- `app_module_permissions`
+
+Roles:
+
+- `desarrollador`: permisos totales.
+- `administrador`: acceso avanzado por modulo.
+- `editor`: puede cargar y modificar datos del modulo asignado.
+- `lector`: solo puede consultar reportes y tablas.
+
+Para el primer usuario:
+
+1. Crear el usuario en Supabase Auth con el correo `desarrollosistema@aty.com`.
+2. Ejecutar `supabase/auth-permissions.sql` en SQL Editor.
+3. Agregar las variables de Supabase en Vercel.
+4. Redeploy.
 
 ## Vercel
 

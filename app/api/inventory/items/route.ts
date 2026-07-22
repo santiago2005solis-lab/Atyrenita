@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { InventoryItem } from "@/lib/company-data";
+import { requireAppUser } from "@/lib/auth";
 import { inventoryItemFromRow, inventoryItemToRow } from "@/lib/db-mappers";
 import {
   isSupabaseConfigured,
@@ -10,7 +11,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAppUser(request, "deposito", "lector");
+  if (auth.error) return auth.error;
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ items: [], storageMode: "demo" });
   }
@@ -26,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request, "deposito", "editor");
+  if (auth.error) return auth.error;
+
   const body = (await request.json()) as Partial<InventoryItem>;
   const validationError = validateItem(body);
 

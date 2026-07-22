@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   cashboxes,
   demoData,
@@ -10,13 +10,17 @@ import {
   inventoryItemFromRow,
   inventoryMovementFromRow,
 } from "@/lib/db-mappers";
+import { requireAppUser } from "@/lib/auth";
 import { isSupabaseConfigured, supabaseSelect } from "@/lib/supabase-rest";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAppUser(request);
+  if (auth.error) return auth.error;
+
   if (!isSupabaseConfigured()) {
-    return NextResponse.json(demoData);
+    return NextResponse.json({ ...demoData, currentUser: auth.user });
   }
 
   try {
@@ -38,6 +42,7 @@ export async function GET() {
     const data: AppData = {
       storageMode: "supabase",
       storageMessage: "Conectado a Supabase.",
+      currentUser: auth.user,
       cashboxes,
       warehouses,
       financeMovements: financeRows.map((row) => financeMovementFromRow(row as never)),
@@ -60,6 +65,7 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({
       ...demoData,
+      currentUser: auth.user,
       storageError:
         error instanceof Error
           ? error.message

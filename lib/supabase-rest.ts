@@ -9,7 +9,7 @@ const jsonHeaders = {
 };
 
 export function isSupabaseConfigured() {
-  return Boolean(getSupabaseUrl() && getSupabaseKey());
+  return Boolean(getSupabaseUrl() && getSupabaseServiceKey());
 }
 
 export async function supabaseSelect<T>(path: string): Promise<T> {
@@ -80,16 +80,29 @@ async function supabaseRequest<T>(
   return response.json() as Promise<T>;
 }
 
-function getSupabaseUrl() {
+export function getSupabaseUrl() {
   return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 }
 
-function getSupabaseKey() {
+export function getSupabaseServiceKey() {
   return (
     process.env.SUPABASE_SECRET_KEY ??
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
     process.env.SUPABASE_ANON_KEY
   );
+}
+
+export function getSupabaseAuthKey() {
+  return (
+    process.env.SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    getSupabaseServiceKey()
+  );
+}
+
+function getSupabaseKey() {
+  return getSupabaseServiceKey();
 }
 
 function isSupabaseOpaqueKey(key: string) {

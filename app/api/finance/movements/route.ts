@@ -5,6 +5,7 @@ import {
   financeMovementFromRow,
   financeMovementToRow,
 } from "@/lib/db-mappers";
+import { requireAppUser } from "@/lib/auth";
 import {
   isSupabaseConfigured,
   supabaseInsert,
@@ -13,7 +14,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAppUser(request, "finanzas", "lector");
+  if (auth.error) return auth.error;
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ movements: [], storageMode: "demo" });
   }
@@ -29,6 +33,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAppUser(request, "finanzas", "editor");
+  if (auth.error) return auth.error;
+
   const body = (await request.json()) as Partial<FinanceMovement>;
   const validationError = validateMovement(body);
 

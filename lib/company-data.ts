@@ -1,3 +1,5 @@
+import type { AppUser } from "./permissions";
+
 export type StorageMode = "demo" | "supabase";
 
 export type FinanceMovementType = "ingreso" | "egreso" | "transferencia";
@@ -62,6 +64,7 @@ export type HrEmployee = {
 };
 
 export type AppData = {
+  currentUser?: AppUser;
   storageMode: StorageMode;
   storageMessage?: string;
   storageError?: string;

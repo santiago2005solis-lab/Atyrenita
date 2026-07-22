@@ -16,8 +16,9 @@ import {
   type InventoryMovement,
   type InventoryMovementType,
 } from "@/lib/company-data";
+import { canEditModule, canReadModule, type AppModule } from "@/lib/permissions";
 
-type ModuleId = "finanzas" | "deposito" | "rrhh";
+type ModuleId = Extract<AppModule, "finanzas" | "deposito" | "rrhh">;
 type SavingTarget = "finance" | "item" | "inventory-movement" | null;
 
 type FinanceForm = {
@@ -98,6 +99,12 @@ const initialInventoryMovementForm: InventoryMovementForm = {
   unitCost: "",
 };
 
+const moduleDefinitions: Array<{ id: ModuleId; label: string; mark: string }> = [
+  { id: "finanzas", label: "Finanzas", mark: "F" },
+  { id: "deposito", label: "Deposito", mark: "D" },
+  { id: "rrhh", label: "Recursos Humanos", mark: "RH" },
+];
+
 export default function AppPage() {
   const [activeModule, setActiveModule] = useState<ModuleId>("finanzas");
   const [data, setData] = useState<AppData>(demoData);
@@ -118,7 +125,14 @@ export default function AppPage() {
     async function loadInitialData() {
       try {
         const response = await fetch("/api/bootstrap", { cache: "no-store" });
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
         const payload = (await response.json()) as AppData;
+        if (!response.ok) {
+          throw new Error(payload.storageError ?? "No se pudo cargar el sistema.");
+        }
         if (!isMounted) return;
         setData(payload);
         setStatusMessage(payload.storageMessage ?? "Datos cargados.");
@@ -135,6 +149,21 @@ export default function AppPage() {
       isMounted = false;
     };
   }, []);
+
+  const visibleModules = useMemo(
+    () =>
+      data.currentUser
+        ? moduleDefinitions.filter((module) => canReadModule(data.currentUser, module.id))
+        : moduleDefinitions,
+    [data.currentUser],
+  );
+
+  const effectiveActiveModule =
+    data.currentUser && !canReadModule(data.currentUser, activeModule)
+      ? (visibleModules[0]?.id ?? "finanzas")
+      : activeModule;
+  const canEditFinance = canEditModule(data.currentUser, "finanzas");
+  const canEditDeposito = canEditModule(data.currentUser, "deposito");
 
   const moneyFormatter = useMemo(
     () =>
@@ -236,6 +265,10 @@ export default function AppPage() {
 
   async function submitFinanceMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEditFinance) {
+      setStatusMessage("Su usuario no puede cargar movimientos en Finanzas.");
+      return;
+    }
     setSaving("finance");
 
     try {
@@ -276,6 +309,10 @@ export default function AppPage() {
 
   async function submitInventoryItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEditDeposito) {
+      setStatusMessage("Su usuario no puede cargar articulos en Deposito.");
+      return;
+    }
     setSaving("item");
 
     try {
@@ -317,6 +354,10 @@ export default function AppPage() {
   async function submitInventoryMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedItem) return;
+    if (!canEditDeposito) {
+      setStatusMessage("Su usuario no puede cargar movimientos en Deposito.");
+      return;
+    }
     setSaving("inventory-movement");
 
     try {
@@ -406,6 +447,11 @@ export default function AppPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Navegacion principal">
@@ -420,16 +466,12 @@ export default function AppPage() {
         </div>
 
         <nav className="nav-tabs" aria-label="Modulos">
-          {[
-            { id: "finanzas", label: "Finanzas", mark: "F" },
-            { id: "deposito", label: "Deposito", mark: "D" },
-            { id: "rrhh", label: "Recursos Humanos", mark: "RH" },
-          ].map((module) => (
+          {visibleModules.map((module) => (
             <button
-              aria-pressed={activeModule === module.id}
-              className={activeModule === module.id ? "active" : ""}
+              aria-pressed={effectiveActiveModule === module.id}
+              className={effectiveActiveModule === module.id ? "active" : ""}
               key={module.id}
-              onClick={() => setActiveModule(module.id as ModuleId)}
+              onClick={() => setActiveModule(module.id)}
               type="button"
             >
               <span aria-hidden="true">{module.mark}</span>
@@ -452,11 +494,24 @@ export default function AppPage() {
             <h2>Administracion general por modulos</h2>
           </div>
           <div className="topbar-actions">
-            <button type="button" onClick={() => setActiveModule("finanzas")}>
-              Registrar caja
-            </button>
-            <button type="button" onClick={() => setActiveModule("deposito")}>
-              Stock deposito
+            {data.currentUser && (
+              <div className="user-chip">
+                <span>{data.currentUser.fullName}</span>
+                <strong>{data.currentUser.role}</strong>
+              </div>
+            )}
+            {canReadModule(data.currentUser, "finanzas") && (
+              <button type="button" onClick={() => setActiveModule("finanzas")}>
+                Registrar caja
+              </button>
+            )}
+            {canReadModule(data.currentUser, "deposito") && (
+              <button type="button" onClick={() => setActiveModule("deposito")}>
+                Stock deposito
+              </button>
+            )}
+            <button type="button" onClick={logout}>
+              Salir
             </button>
           </div>
         </header>
@@ -467,8 +522,18 @@ export default function AppPage() {
           {statusMessage}
         </div>
 
-        {activeModule === "finanzas" && (
+        {visibleModules.length === 0 && (
+          <section className="panel">
+            <PanelHeading eyebrow="Acceso" title="Sin modulos asignados" />
+            <p className="muted-text">
+              Su usuario esta activo, pero todavia no tiene permisos asignados.
+            </p>
+          </section>
+        )}
+
+        {effectiveActiveModule === "finanzas" && canReadModule(data.currentUser, "finanzas") && (
           <FinanceModule
+            canEdit={canEditFinance}
             cashboxSummaries={cashboxSummaries}
             exportFinanceCsv={exportFinanceCsv}
             financeForm={financeForm}
@@ -484,8 +549,9 @@ export default function AppPage() {
           />
         )}
 
-        {activeModule === "deposito" && (
+        {effectiveActiveModule === "deposito" && canReadModule(data.currentUser, "deposito") && (
           <InventoryModule
+            canEdit={canEditDeposito}
             inventoryReport={inventoryReport}
             itemForm={itemForm}
             money={money}
@@ -501,7 +567,7 @@ export default function AppPage() {
           />
         )}
 
-        {activeModule === "rrhh" && (
+        {effectiveActiveModule === "rrhh" && canReadModule(data.currentUser, "rrhh") && (
           <HumanResourcesModule employees={data.hrEmployees} money={money} />
         )}
       </section>
@@ -510,6 +576,7 @@ export default function AppPage() {
 }
 
 function FinanceModule({
+  canEdit,
   cashboxSummaries,
   exportFinanceCsv,
   financeForm,
@@ -523,6 +590,7 @@ function FinanceModule({
   setSelectedMonth,
   submitFinanceMovement,
 }: {
+  canEdit: boolean;
   cashboxSummaries: Array<{
     balance: number;
     cashbox: string;
@@ -560,44 +628,50 @@ function FinanceModule({
       <div className="content-grid finance-layout">
         <section className="panel">
           <PanelHeading eyebrow="Finanzas" title="Nuevo movimiento de caja" />
-          <form className="movement-form" onSubmit={submitFinanceMovement}>
-            <div className="segmented" role="group" aria-label="Tipo de movimiento">
-              {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
-                <button
-                  className={financeForm.movementType === type ? "selected" : ""}
-                  key={type}
-                  onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
-                  type="button"
-                >
-                  {type}
-                </button>
-              ))}
+          {!canEdit && (
+            <div className="status-banner locked">
+              Permiso lector: puede consultar reportes, pero no cargar movimientos.
             </div>
-
-            <label>
-              Caja
-              <select
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, cashboxName: event.target.value })
-                }
-                value={financeForm.cashboxName}
-              >
-                {cashboxes.map((cashbox) => (
-                  <option key={cashbox}>{cashbox}</option>
+          )}
+          <form className="movement-form" onSubmit={submitFinanceMovement}>
+            <fieldset className="form-fieldset" disabled={!canEdit || saving === "finance"}>
+              <div className="segmented" role="group" aria-label="Tipo de movimiento">
+                {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
+                  <button
+                    className={financeForm.movementType === type ? "selected" : ""}
+                    key={type}
+                    onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
+                    type="button"
+                  >
+                    {type}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
 
-            <label>
-              Concepto
-              <input
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, concept: event.target.value })
-                }
-                placeholder="Ej. venta, compra, anticipo"
-                value={financeForm.concept}
-              />
-            </label>
+              <label>
+                Caja
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, cashboxName: event.target.value })
+                  }
+                  value={financeForm.cashboxName}
+                >
+                  {cashboxes.map((cashbox) => (
+                    <option key={cashbox}>{cashbox}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Concepto
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, concept: event.target.value })
+                  }
+                  placeholder="Ej. venta, compra, anticipo"
+                  value={financeForm.concept}
+                />
+              </label>
 
             <div className="field-row">
               <label>
@@ -697,9 +771,10 @@ function FinanceModule({
               />
             </label>
 
-            <button className="submit-button" disabled={saving === "finance"} type="submit">
-              {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
-            </button>
+              <button className="submit-button" disabled={!canEdit || saving === "finance"} type="submit">
+                {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
+              </button>
+            </fieldset>
           </form>
         </section>
 
@@ -773,6 +848,7 @@ function FinanceModule({
 }
 
 function InventoryModule({
+  canEdit,
   inventoryReport,
   itemForm,
   money,
@@ -786,6 +862,7 @@ function InventoryModule({
   submitInventoryItem,
   submitInventoryMovement,
 }: {
+  canEdit: boolean;
   inventoryReport: {
     byWarehouse: Array<{
       items: InventoryItem[];
@@ -825,20 +902,26 @@ function InventoryModule({
       <div className="content-grid inventory-layout">
         <section className="panel">
           <PanelHeading eyebrow="Deposito" title="Nuevo articulo" />
+          {!canEdit && (
+            <div className="status-banner locked">
+              Permiso lector: puede consultar stock, pero no cargar articulos.
+            </div>
+          )}
           <form className="movement-form" onSubmit={submitInventoryItem}>
-            <label>
-              Deposito
-              <select
-                onChange={(event) =>
-                  setItemForm({ ...itemForm, warehouseName: event.target.value })
-                }
-                value={itemForm.warehouseName}
-              >
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse}>{warehouse}</option>
-                ))}
-              </select>
-            </label>
+            <fieldset className="form-fieldset" disabled={!canEdit || saving === "item"}>
+              <label>
+                Deposito
+                <select
+                  onChange={(event) =>
+                    setItemForm({ ...itemForm, warehouseName: event.target.value })
+                  }
+                  value={itemForm.warehouseName}
+                >
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse}>{warehouse}</option>
+                  ))}
+                </select>
+              </label>
             <div className="field-row">
               <label>
                 Codigo
@@ -926,30 +1009,40 @@ function InventoryModule({
                 value={itemForm.supplier}
               />
             </label>
-            <button className="submit-button" disabled={saving === "item"} type="submit">
-              {saving === "item" ? "Guardando..." : "Guardar articulo"}
-            </button>
+              <button className="submit-button" disabled={!canEdit || saving === "item"} type="submit">
+                {saving === "item" ? "Guardando..." : "Guardar articulo"}
+              </button>
+            </fieldset>
           </form>
         </section>
 
         <section className="panel">
           <PanelHeading eyebrow="Stock" title="Movimiento de deposito" />
+          {!canEdit && (
+            <div className="status-banner locked">
+              Permiso lector: puede consultar movimientos, pero no cargar cambios de stock.
+            </div>
+          )}
           <form className="movement-form" onSubmit={submitInventoryMovement}>
-            <label>
-              Articulo
-              <select
-                onChange={(event) =>
-                  setMovementForm({ ...movementForm, itemId: event.target.value })
-                }
-                value={selectedItem?.id ?? ""}
-              >
-                {inventoryReport.filteredItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} - {item.warehouseName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <fieldset
+              className="form-fieldset"
+              disabled={!canEdit || saving === "inventory-movement"}
+            >
+              <label>
+                Articulo
+                <select
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, itemId: event.target.value })
+                  }
+                  value={selectedItem?.id ?? ""}
+                >
+                  {inventoryReport.filteredItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} - {item.warehouseName}
+                    </option>
+                  ))}
+                </select>
+              </label>
             <div className="field-row">
               <label>
                 Tipo
@@ -1055,13 +1148,14 @@ function InventoryModule({
                 value={movementForm.notes}
               />
             </label>
-            <button
-              className="submit-button"
-              disabled={!selectedItem || saving === "inventory-movement"}
-              type="submit"
-            >
-              {saving === "inventory-movement" ? "Guardando..." : "Guardar movimiento"}
-            </button>
+              <button
+                className="submit-button"
+                disabled={!canEdit || !selectedItem || saving === "inventory-movement"}
+                type="submit"
+              >
+                {saving === "inventory-movement" ? "Guardando..." : "Guardar movimiento"}
+              </button>
+            </fieldset>
           </form>
         </section>
 

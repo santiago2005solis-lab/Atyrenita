@@ -1,4 +1,12 @@
-export const appModules = ["finanzas", "deposito", "rrhh", "usuarios"] as const;
+export const appModules = [
+  "ganadero",
+  "agricola",
+  "maquinarias",
+  "rrhh",
+  "financiero",
+  "deposito",
+  "usuarios",
+] as const;
 export const appRoles = ["lector", "editor", "administrador", "desarrollador"] as const;
 export const permissionRoles = [
   "sin_acceso",

@@ -15,7 +15,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAppUser(request, "finanzas", "lector");
+  const auth = await requireAppUser(request, "financiero", "lector");
   if (auth.error) return auth.error;
 
   if (!isSupabaseConfigured()) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAppUser(request, "finanzas", "editor");
+  const auth = await requireAppUser(request, "financiero", "editor");
   if (auth.error) return auth.error;
 
   const body = (await request.json()) as Partial<FinanceMovement>;

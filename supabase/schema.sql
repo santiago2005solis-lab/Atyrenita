@@ -98,7 +98,17 @@ create table if not exists app_users (
 
 create table if not exists app_module_permissions (
   user_id uuid not null references app_users(id) on delete cascade,
-  module_name text not null check (module_name in ('finanzas', 'deposito', 'rrhh', 'usuarios')),
+  module_name text not null check (
+    module_name in (
+      'ganadero',
+      'agricola',
+      'maquinarias',
+      'rrhh',
+      'financiero',
+      'deposito',
+      'usuarios'
+    )
+  ),
   access_role text not null check (
     access_role in ('sin_acceso', 'lector', 'editor', 'administrador', 'desarrollador')
   ),
@@ -220,9 +230,12 @@ select
 from app_users
 cross join (
   values
-    ('finanzas'),
-    ('deposito'),
+    ('ganadero'),
+    ('agricola'),
+    ('maquinarias'),
     ('rrhh'),
+    ('financiero'),
+    ('deposito'),
     ('usuarios')
 ) as modules(module_name)
 where lower(app_users.email) = 'desarrollosistema@aty.com'

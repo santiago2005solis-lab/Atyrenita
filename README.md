@@ -4,9 +4,12 @@ Sistema web general para administrar una empresa ganadera/agropecuaria.
 
 ## Modulos
 
-- Finanzas: movimientos, reportes y exportacion CSV para 6 cajas.
-- Deposito: articulos, stock minimo y movimientos para 4 depositos fisicos.
+- Ganadero: estructura base para rodeo, lotes, pesajes, sanidad y reproduccion.
+- Agricola: estructura base para campanas, parcelas, insumos, labores y cosecha.
+- Maquinarias: estructura base para equipos, horas, combustible y mantenimiento.
 - Recursos Humanos: base inicial de personal, preparada para ampliar.
+- Financiero: movimientos, reportes y exportacion CSV para 6 cajas.
+- Deposito: articulos, stock minimo y movimientos para 4 depositos fisicos.
 
 ## Cajas iniciales
 
@@ -70,6 +73,8 @@ Para el primer usuario:
 3. Agregar las variables de Supabase en Vercel.
 4. Redeploy.
 
+Si ya existe la base y se agregan los modulos nuevos, ejecutar `supabase/modules-update.sql`.
+
 ## Vercel
 
 1. Subir el proyecto a GitHub.
@@ -90,7 +95,7 @@ El archivo `supabase/schema.sql` crea:
 - `inventory_items`
 - `inventory_movements`
 - `hr_employees`
-- Vistas de reporte para finanzas y deposito
+- Vistas de reporte para financiero y deposito
 
 ## Siguiente paso
 

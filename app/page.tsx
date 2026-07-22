@@ -18,7 +18,10 @@ import {
 } from "@/lib/company-data";
 import { canEditModule, canReadModule, type AppModule } from "@/lib/permissions";
 
-type ProtectedModuleId = Extract<AppModule, "finanzas" | "deposito" | "rrhh">;
+type ProtectedModuleId = Extract<
+  AppModule,
+  "ganadero" | "agricola" | "maquinarias" | "rrhh" | "financiero" | "deposito"
+>;
 type ModuleId = "inicio" | ProtectedModuleId;
 type SavingTarget = "finance" | "item" | "inventory-movement" | null;
 
@@ -111,9 +114,12 @@ const initialInventoryMovementForm: InventoryMovementForm = {
 };
 
 const protectedModuleDefinitions: Array<{ id: ProtectedModuleId; label: string; mark: string }> = [
-  { id: "finanzas", label: "Finanzas", mark: "F" },
-  { id: "deposito", label: "Deposito", mark: "D" },
+  { id: "ganadero", label: "Ganadero", mark: "G" },
+  { id: "agricola", label: "Agricola", mark: "A" },
+  { id: "maquinarias", label: "Maquinarias", mark: "M" },
   { id: "rrhh", label: "Recursos Humanos", mark: "RH" },
+  { id: "financiero", label: "Financiero", mark: "FI" },
+  { id: "deposito", label: "Deposito", mark: "D" },
 ];
 
 const homeModule = { id: "inicio" as const, label: "Inicio", mark: "IN" };
@@ -182,7 +188,7 @@ export default function AppPage() {
     !canReadModule(data.currentUser, activeModule)
       ? "inicio"
       : activeModule;
-  const canEditFinance = canEditModule(data.currentUser, "finanzas");
+  const canEditFinance = canEditModule(data.currentUser, "financiero");
   const canEditDeposito = canEditModule(data.currentUser, "deposito");
 
   const moneyFormatter = useMemo(
@@ -287,14 +293,14 @@ export default function AppPage() {
     const itemNames = new Map(data.inventoryItems.map((item) => [item.id, item.name]));
     const activities: DashboardActivity[] = [];
 
-    if (canReadModule(data.currentUser, "finanzas")) {
+    if (canReadModule(data.currentUser, "financiero")) {
       activities.push(
         ...data.financeMovements.map((movement) => ({
           amount: movement.amount,
           date: movement.createdAt || movement.movementDate,
           detail: `${movement.cashboxName} | ${movement.category}`,
           id: `finance-${movement.id}`,
-          module: "Finanzas",
+          module: "Financiero",
           title: movement.concept,
           tone: movement.movementType === "egreso" ? ("negative" as const) : ("positive" as const),
         })),
@@ -346,7 +352,7 @@ export default function AppPage() {
   async function submitFinanceMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canEditFinance) {
-      setStatusMessage("Su usuario no puede cargar movimientos en Finanzas.");
+      setStatusMessage("Su usuario no puede cargar movimientos en Financiero.");
       return;
     }
     setSaving("finance");
@@ -522,7 +528,7 @@ export default function AppPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `reporte-finanzas-${selectedMonth || "todo"}.csv`;
+    link.download = `reporte-financiero-${selectedMonth || "todo"}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -580,8 +586,8 @@ export default function AppPage() {
                 <strong>{data.currentUser.role}</strong>
               </div>
             )}
-            {canReadModule(data.currentUser, "finanzas") && (
-              <button type="button" onClick={() => setActiveModule("finanzas")}>
+            {canReadModule(data.currentUser, "financiero") && (
+              <button type="button" onClick={() => setActiveModule("financiero")}>
                 Registrar caja
               </button>
             )}
@@ -613,8 +619,11 @@ export default function AppPage() {
 
         {effectiveActiveModule === "inicio" && (
           <DashboardModule
+            canReadAgricola={canReadModule(data.currentUser, "agricola")}
             canReadDeposito={canReadModule(data.currentUser, "deposito")}
-            canReadFinance={canReadModule(data.currentUser, "finanzas")}
+            canReadFinance={canReadModule(data.currentUser, "financiero")}
+            canReadGanadero={canReadModule(data.currentUser, "ganadero")}
+            canReadMaquinarias={canReadModule(data.currentUser, "maquinarias")}
             canReadRrhh={canReadModule(data.currentUser, "rrhh")}
             data={data}
             financeReport={financeReport}
@@ -625,7 +634,8 @@ export default function AppPage() {
           />
         )}
 
-        {effectiveActiveModule === "finanzas" && canReadModule(data.currentUser, "finanzas") && (
+        {effectiveActiveModule === "financiero" &&
+          canReadModule(data.currentUser, "financiero") && (
           <FinanceModule
             canEdit={canEditFinance}
             cashboxSummaries={cashboxSummaries}
@@ -664,14 +674,77 @@ export default function AppPage() {
         {effectiveActiveModule === "rrhh" && canReadModule(data.currentUser, "rrhh") && (
           <HumanResourcesModule employees={data.hrEmployees} money={money} />
         )}
+
+        {effectiveActiveModule === "ganadero" &&
+          canReadModule(data.currentUser, "ganadero") && (
+            <BaseOperationalModule
+              description="Base para controlar rodeo, lotes, pesajes, sanidad y movimientos ganaderos."
+              kpis={[
+                { label: "Rodeo registrado", value: "0" },
+                { label: "Lotes activos", value: "0" },
+                { label: "Alertas sanitarias", tone: "warning", value: "0" },
+                { label: "Estado modulo", tone: "blue", value: "Base" },
+              ]}
+              roadmap={["Rodeo", "Lotes", "Pesajes", "Sanidad", "Reproduccion", "Ventas"]}
+              sampleRows={[
+                ["Rodeo", "Registro por categoria y establecimiento"],
+                ["Pesaje", "Control de kilos y ganancia diaria"],
+                ["Sanidad", "Vacunas, tratamientos y alertas"],
+              ]}
+              title="Modulo Ganadero"
+            />
+          )}
+
+        {effectiveActiveModule === "agricola" &&
+          canReadModule(data.currentUser, "agricola") && (
+            <BaseOperationalModule
+              description="Base para planificar campanas, parcelas, insumos, labores y cosechas."
+              kpis={[
+                { label: "Campanas", value: "0" },
+                { label: "Parcelas", value: "0" },
+                { label: "Insumos planificados", tone: "warning", value: "0" },
+                { label: "Estado modulo", tone: "blue", value: "Base" },
+              ]}
+              roadmap={["Campanas", "Parcelas", "Siembra", "Insumos", "Labores", "Cosecha"]}
+              sampleRows={[
+                ["Campanas", "Plan agricola por periodo y cultivo"],
+                ["Insumos", "Semillas, fertilizantes y agroquimicos"],
+                ["Cosecha", "Rendimiento, destino y costos"],
+              ]}
+              title="Modulo Agricola"
+            />
+          )}
+
+        {effectiveActiveModule === "maquinarias" &&
+          canReadModule(data.currentUser, "maquinarias") && (
+            <BaseOperationalModule
+              description="Base para controlar equipos, horas de uso, combustible y mantenimientos."
+              kpis={[
+                { label: "Equipos", value: "0" },
+                { label: "Horas registradas", value: "0" },
+                { label: "Mantenimientos", tone: "warning", value: "0" },
+                { label: "Estado modulo", tone: "blue", value: "Base" },
+              ]}
+              roadmap={["Equipos", "Operadores", "Horas", "Combustible", "Mantenimiento", "Costos"]}
+              sampleRows={[
+                ["Equipos", "Ficha tecnica y estado operativo"],
+                ["Combustible", "Carga, consumo y responsable"],
+                ["Mantenimiento", "Preventivo, correctivo y repuestos"],
+              ]}
+              title="Modulo Maquinarias"
+            />
+          )}
       </section>
     </main>
   );
 }
 
 function DashboardModule({
+  canReadAgricola,
   canReadDeposito,
   canReadFinance,
+  canReadGanadero,
+  canReadMaquinarias,
   canReadRrhh,
   data,
   financeReport,
@@ -680,8 +753,11 @@ function DashboardModule({
   money,
   setActiveModule,
 }: {
+  canReadAgricola: boolean;
   canReadDeposito: boolean;
   canReadFinance: boolean;
+  canReadGanadero: boolean;
+  canReadMaquinarias: boolean;
   canReadRrhh: boolean;
   data: AppData;
   financeReport: {
@@ -724,11 +800,44 @@ function DashboardModule({
       <section className="dashboard-grid" aria-label="Resumen de modulos">
         <button
           className="module-summary-card"
-          disabled={!canReadFinance}
-          onClick={() => setActiveModule("finanzas")}
+          disabled={!canReadGanadero}
+          onClick={() => setActiveModule("ganadero")}
           type="button"
         >
-          <span>Finanzas</span>
+          <span>Ganadero</span>
+          <strong>{canReadGanadero ? "Base" : "Sin acceso"}</strong>
+          <small>Rodeo, lotes, pesajes y sanidad</small>
+        </button>
+
+        <button
+          className="module-summary-card"
+          disabled={!canReadAgricola}
+          onClick={() => setActiveModule("agricola")}
+          type="button"
+        >
+          <span>Agricola</span>
+          <strong>{canReadAgricola ? "Base" : "Sin acceso"}</strong>
+          <small>Campanas, parcelas, labores y cosecha</small>
+        </button>
+
+        <button
+          className="module-summary-card"
+          disabled={!canReadMaquinarias}
+          onClick={() => setActiveModule("maquinarias")}
+          type="button"
+        >
+          <span>Maquinarias</span>
+          <strong>{canReadMaquinarias ? "Base" : "Sin acceso"}</strong>
+          <small>Equipos, horas, combustible y mantenimiento</small>
+        </button>
+
+        <button
+          className="module-summary-card"
+          disabled={!canReadFinance}
+          onClick={() => setActiveModule("financiero")}
+          type="button"
+        >
+          <span>Financiero</span>
           <strong>{canReadFinance ? money(financeReport.balance) : "Sin acceso"}</strong>
           <small>
             {financeReport.filtered.length} movimientos | ingresos {money(financeReport.income)}
@@ -811,6 +920,63 @@ function DashboardModule({
   );
 }
 
+function BaseOperationalModule({
+  description,
+  kpis,
+  roadmap,
+  sampleRows,
+  title,
+}: {
+  description: string;
+  kpis: Array<{ label: string; tone?: "blue" | "warning"; value: string }>;
+  roadmap: string[];
+  sampleRows: Array<[string, string]>;
+  title: string;
+}) {
+  return (
+    <>
+      <section className="kpi-grid" aria-label={`Indicadores de ${title}`}>
+        {kpis.map((kpi) => (
+          <KpiCard key={kpi.label} label={kpi.label} tone={kpi.tone} value={kpi.value} />
+        ))}
+      </section>
+
+      <div className="content-grid">
+        <section className="panel wide">
+          <PanelHeading eyebrow="Estructura inicial" title={title} />
+          <p className="muted-text module-description">{description}</p>
+          <div className="roadmap-grid">
+            {roadmap.map((item) => (
+              <article className="roadmap-card" key={item}>
+                <span>{item}</span>
+                <strong>Preparado</strong>
+              </article>
+            ))}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  <th>Funcion preparada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sampleRows.map(([area, detail]) => (
+                  <tr key={area}>
+                    <td>{area}</td>
+                    <td>{detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
 function FinanceModule({
   canEdit,
   cashboxSummaries,
@@ -854,7 +1020,7 @@ function FinanceModule({
 }) {
   return (
     <>
-      <section className="kpi-grid" aria-label="Indicadores de finanzas">
+      <section className="kpi-grid" aria-label="Indicadores financieros">
         <KpiCard label="Saldo neto filtrado" value={money(financeReport.balance)} />
         <KpiCard label="Ingresos" value={money(financeReport.income)} />
         <KpiCard label="Egresos" tone="warning" value={money(financeReport.expense)} />
@@ -863,7 +1029,7 @@ function FinanceModule({
 
       <div className="content-grid finance-layout">
         <section className="panel">
-          <PanelHeading eyebrow="Finanzas" title="Nuevo movimiento de caja" />
+          <PanelHeading eyebrow="Financiero" title="Nuevo movimiento de caja" />
           {!canEdit && (
             <div className="status-banner locked">
               Permiso lector: puede consultar reportes, pero no cargar movimientos.

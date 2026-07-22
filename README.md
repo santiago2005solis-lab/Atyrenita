@@ -43,19 +43,20 @@ La app funciona en modo demo cuando no hay variables de Supabase.
 
 ```bash
 SUPABASE_URL=https://TU-PROYECTO.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY
+SUPABASE_SECRET_KEY=TU_SUPABASE_SECRET_KEY
 ```
 
-La clave `SUPABASE_SERVICE_ROLE_KEY` solo debe estar en el servidor, por ejemplo en Vercel Environment Variables. No debe enviarse al navegador.
+La clave `SUPABASE_SECRET_KEY` solo debe estar en el servidor, por ejemplo en Vercel Environment Variables. No debe enviarse al navegador. La app tambien acepta `SUPABASE_SERVICE_ROLE_KEY` para proyectos que todavia usen claves legacy.
 
 ## Vercel
 
 1. Subir el proyecto a GitHub.
 2. Importar el repositorio desde Vercel.
 3. Framework: Next.js.
-4. Build command: `pnpm build`.
-5. Agregar las variables de Supabase en Production, Preview y Development.
-6. Deploy.
+4. Install command: `npm install`.
+5. Build command: `npm run build`.
+6. Agregar las variables de Supabase en Production, Preview y Development.
+7. Deploy.
 
 ## Base de datos
 

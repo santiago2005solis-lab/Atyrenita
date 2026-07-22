@@ -49,13 +49,20 @@ async function supabaseRequest<T>(
     throw new Error("Supabase no esta configurado.");
   }
 
+  const authHeaders: Record<string, string> = {
+    apikey: key,
+  };
+
+  if (!isSupabaseOpaqueKey(key)) {
+    authHeaders.Authorization = `Bearer ${key}`;
+  }
+
   const response = await fetch(`${url}/rest/v1/${path}`, {
     body: init.body ? JSON.stringify(init.body) : undefined,
     cache: "no-store",
     headers: {
       ...jsonHeaders,
-      apikey: key,
-      Authorization: `Bearer ${key}`,
+      ...authHeaders,
       ...(init.prefer ? { Prefer: init.prefer } : {}),
     },
     method: init.method ?? "GET",
@@ -78,5 +85,13 @@ function getSupabaseUrl() {
 }
 
 function getSupabaseKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  return (
+    process.env.SUPABASE_SECRET_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.SUPABASE_ANON_KEY
+  );
+}
+
+function isSupabaseOpaqueKey(key: string) {
+  return key.startsWith("sb_");
 }

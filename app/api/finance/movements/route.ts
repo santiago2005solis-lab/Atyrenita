@@ -44,17 +44,22 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = {
+    accountName: body.accountName!,
     cashboxName: body.cashboxName!,
+    costCenterName: body.costCenterName!,
     movementType: body.movementType!,
     movementDate: body.movementDate!,
     concept: body.concept!.trim(),
     category: body.category!,
     amount: Number(body.amount),
     currency: "PYG" as const,
+    linkedModule: body.linkedModule!,
     paymentMethod: body.paymentMethod ?? "",
     documentNumber: body.documentNumber ?? "",
     responsible: body.responsible ?? "",
     relatedParty: body.relatedParty ?? "",
+    sourceModule: body.sourceModule ?? "manual",
+    status: body.status ?? "activo",
     notes: body.notes ?? "",
   };
 
@@ -92,6 +97,9 @@ function validateMovement(body: Partial<FinanceMovement>) {
   if (!body.movementDate) return "Ingrese la fecha.";
   if (!body.concept?.trim()) return "Ingrese el concepto.";
   if (!body.category) return "Seleccione una categoria.";
+  if (!body.accountName) return "Seleccione una cuenta contable.";
+  if (!body.costCenterName) return "Seleccione un centro de costo.";
+  if (!body.linkedModule) return "Seleccione el modulo vinculado.";
   if (!Number.isFinite(Number(body.amount)) || Number(body.amount) <= 0) {
     return "Ingrese un monto valido.";
   }

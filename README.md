@@ -74,6 +74,7 @@ Para el primer usuario:
 4. Redeploy.
 
 Si ya existe la base y se agregan los modulos nuevos, ejecutar `supabase/modules-update.sql`.
+Para activar la estructura financiera nueva en una base ya creada, ejecutar `supabase/finance-structure-update.sql`.
 
 ## Vercel
 
@@ -90,6 +91,8 @@ Si ya existe la base y se agregan los modulos nuevos, ejecutar `supabase/modules
 El archivo `supabase/schema.sql` crea:
 
 - `finance_cashboxes`
+- `finance_accounts`
+- `cost_centers`
 - `finance_movements`
 - `inventory_warehouses`
 - `inventory_items`

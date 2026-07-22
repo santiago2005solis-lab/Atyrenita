@@ -5,20 +5,25 @@ import type {
 } from "./company-data";
 
 type FinanceMovementRow = {
+  account_name?: string | null;
   amount: string | number;
   cashbox_name: string;
   category: string;
   concept: string;
+  cost_center_name?: string | null;
   created_at: string;
   currency: "PYG";
   document_number: string | null;
   id: string;
+  linked_module?: FinanceMovement["linkedModule"] | null;
   movement_date: string;
   movement_type: FinanceMovement["movementType"];
   notes: string | null;
   payment_method: string | null;
   related_party: string | null;
   responsible: string | null;
+  source_module?: string | null;
+  status?: FinanceMovement["status"] | null;
 };
 
 type InventoryItemRow = {
@@ -53,17 +58,22 @@ type InventoryMovementRow = {
 export function financeMovementFromRow(row: FinanceMovementRow): FinanceMovement {
   return {
     id: row.id,
+    accountName: row.account_name ?? row.category,
     cashboxName: row.cashbox_name,
+    costCenterName: row.cost_center_name ?? "General",
     movementType: row.movement_type,
     movementDate: row.movement_date,
     concept: row.concept,
     category: row.category,
     amount: Number(row.amount),
     currency: row.currency,
+    linkedModule: row.linked_module ?? "General",
     paymentMethod: row.payment_method ?? "",
     documentNumber: row.document_number ?? "",
     responsible: row.responsible ?? "",
     relatedParty: row.related_party ?? "",
+    sourceModule: row.source_module ?? "manual",
+    status: row.status ?? "activo",
     notes: row.notes ?? "",
     createdAt: row.created_at,
   };
@@ -78,12 +88,17 @@ export function financeMovementToRow(
     movement_date: movement.movementDate,
     concept: movement.concept,
     category: movement.category,
+    account_name: movement.accountName,
     amount: movement.amount,
+    cost_center_name: movement.costCenterName,
     currency: movement.currency,
+    linked_module: movement.linkedModule,
     payment_method: movement.paymentMethod,
     document_number: movement.documentNumber,
     responsible: movement.responsible,
     related_party: movement.relatedParty,
+    source_module: movement.sourceModule,
+    status: movement.status,
     notes: movement.notes,
   };
 }

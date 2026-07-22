@@ -3,21 +3,35 @@ import type { AppUser } from "./permissions";
 export type StorageMode = "demo" | "supabase";
 
 export type FinanceMovementType = "ingreso" | "egreso" | "transferencia";
+export type FinanceMovementStatus = "activo" | "anulado";
+export type LinkedModule =
+  | "Ganadero"
+  | "Agricola"
+  | "Maquinarias"
+  | "Recursos Humanos"
+  | "Financiero"
+  | "Deposito"
+  | "General";
 export type InventoryMovementType = "entrada" | "salida" | "traslado" | "ajuste";
 
 export type FinanceMovement = {
   id: string;
+  accountName: string;
   cashboxName: string;
+  costCenterName: string;
   movementType: FinanceMovementType;
   movementDate: string;
   concept: string;
   category: string;
   amount: number;
   currency: "PYG";
+  linkedModule: LinkedModule;
   paymentMethod: string;
   documentNumber: string;
   responsible: string;
   relatedParty: string;
+  sourceModule: string;
+  status: FinanceMovementStatus;
   notes: string;
   createdAt: string;
 };
@@ -69,6 +83,8 @@ export type AppData = {
   storageMessage?: string;
   storageError?: string;
   cashboxes: string[];
+  costCenters: string[];
+  financeAccounts: string[];
   warehouses: string[];
   financeMovements: FinanceMovement[];
   inventoryItems: InventoryItem[];
@@ -83,6 +99,50 @@ export const cashboxes = [
   "Caja Inversiones",
   "Caja Maquinas",
   "Caja CDE",
+];
+
+export const linkedModules: LinkedModule[] = [
+  "Ganadero",
+  "Agricola",
+  "Maquinarias",
+  "Recursos Humanos",
+  "Financiero",
+  "Deposito",
+  "General",
+];
+
+export const financeAccounts = [
+  "Venta de ganado",
+  "Venta agricola",
+  "Servicios y alquileres",
+  "Compra de ganado",
+  "Alimento animal",
+  "Sanidad animal",
+  "Insumos agricolas",
+  "Combustible",
+  "Mantenimiento de maquinarias",
+  "Repuestos",
+  "Sueldos y jornales",
+  "Deposito e inventario",
+  "Servicios generales",
+  "Transferencias internas",
+  "Inversiones",
+  "Otros",
+];
+
+export const costCenters = [
+  "Ganadero Confinamiento",
+  "Ganadero a Pasto",
+  "Agricola",
+  "Maquinarias",
+  "Recursos Humanos",
+  "Deposito Capitan",
+  "Deposito Villagra",
+  "Deposito Confinamiento 15 HAS",
+  "Confinamiento 500 HAS",
+  "Administracion CDE",
+  "Inversiones",
+  "General",
 ];
 
 export const warehouses = [
@@ -129,97 +189,127 @@ export const inventoryUnits = ["kg", "bolsa", "litro", "unidad", "ton", "caja"];
 export const demoFinanceMovements: FinanceMovement[] = [
   {
     id: "fin-demo-1",
+    accountName: "Venta de ganado",
     cashboxName: "Caja Ganadero Confinamiento",
+    costCenterName: "Ganadero Confinamiento",
     movementType: "ingreso",
     movementDate: "2026-07-21",
     concept: "Venta de novillos terminados",
     category: "Venta",
     amount: 328400000,
     currency: "PYG",
+    linkedModule: "Ganadero",
     paymentMethod: "Transferencia bancaria",
     documentNumber: "FV-00128",
     responsible: "Administracion",
     relatedParty: "Frigorifico regional",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Operacion de cierre semanal",
     createdAt: "2026-07-21T13:00:00.000Z",
   },
   {
     id: "fin-demo-2",
+    accountName: "Alimento animal",
     cashboxName: "Caja Ganadero Confinamiento",
+    costCenterName: "Ganadero Confinamiento",
     movementType: "egreso",
     movementDate: "2026-07-20",
     concept: "Compra de balanceado terminacion",
     category: "Alimento",
     amount: 68400000,
     currency: "PYG",
+    linkedModule: "Ganadero",
     paymentMethod: "Transferencia bancaria",
     documentNumber: "FC-00451",
     responsible: "Compras",
     relatedParty: "Nutricion Campo",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Reposicion mensual",
     createdAt: "2026-07-20T13:00:00.000Z",
   },
   {
     id: "fin-demo-3",
+    accountName: "Sanidad animal",
     cashboxName: "Caja Ganadero a Pasto",
+    costCenterName: "Ganadero a Pasto",
     movementType: "egreso",
     movementDate: "2026-07-18",
     concept: "Vacunas y antiparasitario",
     category: "Sanidad",
     amount: 19300000,
     currency: "PYG",
+    linkedModule: "Ganadero",
     paymentMethod: "Efectivo",
     documentNumber: "FC-00442",
     responsible: "Encargado campo",
     relatedParty: "Veterinaria Norte",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Plan sanitario trimestral",
     createdAt: "2026-07-18T13:00:00.000Z",
   },
   {
     id: "fin-demo-4",
+    accountName: "Insumos agricolas",
     cashboxName: "Caja Agricola",
+    costCenterName: "Agricola",
     movementType: "egreso",
     movementDate: "2026-07-17",
     concept: "Semillas y fertilizante",
     category: "Agricola",
     amount: 95800000,
     currency: "PYG",
+    linkedModule: "Agricola",
     paymentMethod: "Cheque",
     documentNumber: "FC-00439",
     responsible: "Compras",
     relatedParty: "Agroinsumos Central",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Campana de invierno",
     createdAt: "2026-07-17T13:00:00.000Z",
   },
   {
     id: "fin-demo-5",
+    accountName: "Mantenimiento de maquinarias",
     cashboxName: "Caja Maquinas",
+    costCenterName: "Maquinarias",
     movementType: "egreso",
     movementDate: "2026-07-15",
     concept: "Mantenimiento de tractor",
     category: "Mantenimiento",
     amount: 22500000,
     currency: "PYG",
+    linkedModule: "Maquinarias",
     paymentMethod: "Transferencia bancaria",
     documentNumber: "OS-0097",
     responsible: "Taller",
     relatedParty: "Mecanica Diesel",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Cambio de filtros y reparacion hidraulica",
     createdAt: "2026-07-15T13:00:00.000Z",
   },
   {
     id: "fin-demo-6",
+    accountName: "Transferencias internas",
     cashboxName: "Caja Inversiones",
+    costCenterName: "Inversiones",
     movementType: "transferencia",
     movementDate: "2026-07-12",
     concept: "Reserva para compra de reproductores",
     category: "Transferencia interna",
     amount: 120000000,
     currency: "PYG",
+    linkedModule: "Financiero",
     paymentMethod: "Transferencia bancaria",
     documentNumber: "TR-0021",
     responsible: "Gerencia",
     relatedParty: "Caja Ganadero a Pasto",
+    sourceModule: "manual",
+    status: "activo",
     notes: "Movimiento entre cajas",
     createdAt: "2026-07-12T13:00:00.000Z",
   },
@@ -354,6 +444,8 @@ export const demoData: AppData = {
   storageMode: "demo",
   storageMessage: "Modo demo: configure Supabase en Vercel para guardar datos reales.",
   cashboxes,
+  costCenters,
+  financeAccounts,
   warehouses,
   financeMovements: demoFinanceMovements,
   inventoryItems: demoInventoryItems,

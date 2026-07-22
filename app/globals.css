@@ -723,7 +723,7 @@ select:focus {
 
 .report-controls {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(180px, 240px);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -745,7 +745,7 @@ select:focus {
 
 table {
   width: 100%;
-  min-width: 720px;
+  min-width: 960px;
   border-collapse: collapse;
 }
 

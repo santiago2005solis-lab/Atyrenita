@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   cashboxes,
+  costCenters,
   demoData,
+  financeAccounts,
   warehouses,
   type AppData,
 } from "@/lib/company-data";
@@ -44,6 +46,8 @@ export async function GET(request: NextRequest) {
       storageMessage: "Conectado a Supabase.",
       currentUser: auth.user,
       cashboxes,
+      costCenters,
+      financeAccounts,
       warehouses,
       financeMovements: financeRows.map((row) => financeMovementFromRow(row as never)),
       inventoryItems: itemRows.map((row) => inventoryItemFromRow(row as never)),

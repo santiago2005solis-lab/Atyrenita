@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   cashboxes,
   demoData,
+  linkedModules,
   financeCategories,
   inventoryCategories,
   inventoryUnits,
@@ -11,7 +12,9 @@ import {
   warehouses,
   type AppData,
   type FinanceMovement,
+  type FinanceMovementStatus,
   type FinanceMovementType,
+  type LinkedModule,
   type InventoryItem,
   type InventoryMovement,
   type InventoryMovementType,
@@ -36,17 +39,22 @@ type DashboardActivity = {
 };
 
 type FinanceForm = {
+  accountName: string;
   amount: string;
   cashboxName: string;
   category: string;
   concept: string;
+  costCenterName: string;
   documentNumber: string;
+  linkedModule: LinkedModule;
   movementDate: string;
   movementType: FinanceMovementType;
   notes: string;
   paymentMethod: string;
   relatedParty: string;
   responsible: string;
+  sourceModule: string;
+  status: FinanceMovementStatus;
 };
 
 type ItemForm = {
@@ -76,17 +84,22 @@ type InventoryMovementForm = {
 const today = new Date().toISOString().slice(0, 10);
 
 const initialFinanceForm: FinanceForm = {
+  accountName: demoData.financeAccounts[0],
   amount: "",
   cashboxName: cashboxes[0],
   category: financeCategories[0],
   concept: "",
+  costCenterName: demoData.costCenters[0],
   documentNumber: "",
+  linkedModule: "Ganadero",
   movementDate: today,
   movementType: "ingreso",
   notes: "",
   paymentMethod: paymentMethods[1],
   relatedParty: "",
   responsible: "",
+  sourceModule: "manual",
+  status: "activo",
 };
 
 const initialItemForm: ItemForm = {
@@ -133,6 +146,10 @@ export default function AppPage() {
     initialInventoryMovementForm,
   );
   const [selectedCashbox, setSelectedCashbox] = useState("Todas");
+  const [selectedCostCenter, setSelectedCostCenter] = useState("Todos");
+  const [selectedFinanceAccount, setSelectedFinanceAccount] = useState("Todas");
+  const [selectedFinanceModule, setSelectedFinanceModule] = useState("Todos");
+  const [selectedFinanceStatus, setSelectedFinanceStatus] = useState("activo");
   const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
   const [selectedWarehouse, setSelectedWarehouse] = useState("Todos");
   const [saving, setSaving] = useState<SavingTarget>(null);
@@ -211,18 +228,29 @@ export default function AppPage() {
   const financeReport = useMemo(() => {
     const filtered = data.financeMovements.filter((movement) => {
       const byCashbox = selectedCashbox === "Todas" || movement.cashboxName === selectedCashbox;
+      const byCostCenter =
+        selectedCostCenter === "Todos" || movement.costCenterName === selectedCostCenter;
+      const byAccount =
+        selectedFinanceAccount === "Todas" || movement.accountName === selectedFinanceAccount;
+      const byModule =
+        selectedFinanceModule === "Todos" || movement.linkedModule === selectedFinanceModule;
+      const byStatus =
+        selectedFinanceStatus === "Todos" || movement.status === selectedFinanceStatus;
       const byMonth = !selectedMonth || movement.movementDate.startsWith(selectedMonth);
-      return byCashbox && byMonth;
+      return byCashbox && byCostCenter && byAccount && byModule && byStatus && byMonth;
     });
 
+    const activeFiltered = filtered.filter((movement) => movement.status !== "anulado");
     const income = filtered
-      .filter((movement) => movement.movementType === "ingreso")
+      .filter((movement) => movement.status !== "anulado" && movement.movementType === "ingreso")
       .reduce((sum, movement) => sum + movement.amount, 0);
     const expense = filtered
-      .filter((movement) => movement.movementType === "egreso")
+      .filter((movement) => movement.status !== "anulado" && movement.movementType === "egreso")
       .reduce((sum, movement) => sum + movement.amount, 0);
     const transfer = filtered
-      .filter((movement) => movement.movementType === "transferencia")
+      .filter(
+        (movement) => movement.status !== "anulado" && movement.movementType === "transferencia",
+      )
       .reduce((sum, movement) => sum + movement.amount, 0);
 
     return {
@@ -231,13 +259,22 @@ export default function AppPage() {
       filtered,
       income,
       transfer,
+      activeCount: activeFiltered.length,
     };
-  }, [data.financeMovements, selectedCashbox, selectedMonth]);
+  }, [
+    data.financeMovements,
+    selectedCashbox,
+    selectedCostCenter,
+    selectedFinanceAccount,
+    selectedFinanceModule,
+    selectedFinanceStatus,
+    selectedMonth,
+  ]);
 
   const cashboxSummaries = useMemo(() => {
     return data.cashboxes.map((cashbox) => {
       const movements = data.financeMovements.filter(
-        (movement) => movement.cashboxName === cashbox,
+        (movement) => movement.cashboxName === cashbox && movement.status !== "anulado",
       );
       const income = movements
         .filter((movement) => movement.movementType === "ingreso")
@@ -303,7 +340,7 @@ export default function AppPage() {
         ...data.financeMovements.map((movement) => ({
           amount: movement.amount,
           date: movement.createdAt || movement.movementDate,
-          detail: `${movement.cashboxName} | ${movement.category}`,
+          detail: `${movement.linkedModule} | ${movement.accountName} | ${movement.costCenterName}`,
           id: `finance-${movement.id}`,
           module: "Financiero",
           title: movement.concept,
@@ -383,8 +420,12 @@ export default function AppPage() {
       }));
       setFinanceForm((current) => ({
         ...initialFinanceForm,
+        accountName: current.accountName,
         cashboxName: current.cashboxName,
+        costCenterName: current.costCenterName,
+        linkedModule: current.linkedModule,
         movementDate: current.movementDate,
+        paymentMethod: current.paymentMethod,
       }));
       setStatusMessage(
         payload.storageMode === "supabase"
@@ -501,7 +542,12 @@ export default function AppPage() {
     const headers = [
       "Fecha",
       "Caja",
+      "Modulo vinculado",
+      "Cuenta contable",
+      "Centro de costo",
       "Tipo",
+      "Estado",
+      "Origen",
       "Concepto",
       "Categoria",
       "Monto",
@@ -514,7 +560,12 @@ export default function AppPage() {
     const rows = financeReport.filtered.map((movement) => [
       movement.movementDate,
       movement.cashboxName,
+      movement.linkedModule,
+      movement.accountName,
+      movement.costCenterName,
       movement.movementType,
+      movement.status,
+      movement.sourceModule,
       movement.concept,
       movement.category,
       String(movement.amount),
@@ -637,15 +688,25 @@ export default function AppPage() {
           <FinanceModule
             canEdit={canEditFinance}
             cashboxSummaries={cashboxSummaries}
+            costCenters={data.costCenters}
             exportFinanceCsv={exportFinanceCsv}
+            financeAccounts={data.financeAccounts}
             financeForm={financeForm}
             financeReport={financeReport}
             money={money}
             saving={saving}
             selectedCashbox={selectedCashbox}
+            selectedCostCenter={selectedCostCenter}
+            selectedFinanceAccount={selectedFinanceAccount}
+            selectedFinanceModule={selectedFinanceModule}
+            selectedFinanceStatus={selectedFinanceStatus}
             selectedMonth={selectedMonth}
             setFinanceForm={setFinanceForm}
             setSelectedCashbox={setSelectedCashbox}
+            setSelectedCostCenter={setSelectedCostCenter}
+            setSelectedFinanceAccount={setSelectedFinanceAccount}
+            setSelectedFinanceModule={setSelectedFinanceModule}
+            setSelectedFinanceStatus={setSelectedFinanceStatus}
             setSelectedMonth={setSelectedMonth}
             submitFinanceMovement={submitFinanceMovement}
           />
@@ -973,15 +1034,25 @@ function BaseOperationalModule({
 function FinanceModule({
   canEdit,
   cashboxSummaries,
+  costCenters,
   exportFinanceCsv,
+  financeAccounts,
   financeForm,
   financeReport,
   money,
   saving,
   selectedCashbox,
+  selectedCostCenter,
+  selectedFinanceAccount,
+  selectedFinanceModule,
+  selectedFinanceStatus,
   selectedMonth,
   setFinanceForm,
   setSelectedCashbox,
+  setSelectedCostCenter,
+  setSelectedFinanceAccount,
+  setSelectedFinanceModule,
+  setSelectedFinanceStatus,
   setSelectedMonth,
   submitFinanceMovement,
 }: {
@@ -993,9 +1064,12 @@ function FinanceModule({
     income: number;
     transfer: number;
   }>;
+  costCenters: string[];
   exportFinanceCsv: () => void;
+  financeAccounts: string[];
   financeForm: FinanceForm;
   financeReport: {
+    activeCount: number;
     balance: number;
     expense: number;
     filtered: FinanceMovement[];
@@ -1005,9 +1079,17 @@ function FinanceModule({
   money: (value: number) => string;
   saving: SavingTarget;
   selectedCashbox: string;
+  selectedCostCenter: string;
+  selectedFinanceAccount: string;
+  selectedFinanceModule: string;
+  selectedFinanceStatus: string;
   selectedMonth: string;
   setFinanceForm: (form: FinanceForm) => void;
   setSelectedCashbox: (cashbox: string) => void;
+  setSelectedCostCenter: (costCenter: string) => void;
+  setSelectedFinanceAccount: (account: string) => void;
+  setSelectedFinanceModule: (module: string) => void;
+  setSelectedFinanceStatus: (status: string) => void;
   setSelectedMonth: (month: string) => void;
   submitFinanceMovement: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -1053,6 +1135,52 @@ function FinanceModule({
                 >
                   {cashboxes.map((cashbox) => (
                     <option key={cashbox}>{cashbox}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="field-row">
+                <label>
+                  Modulo vinculado
+                  <select
+                    onChange={(event) =>
+                      setFinanceForm({
+                        ...financeForm,
+                        linkedModule: event.target.value as LinkedModule,
+                      })
+                    }
+                    value={financeForm.linkedModule}
+                  >
+                    {linkedModules.map((module) => (
+                      <option key={module}>{module}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Cuenta contable
+                  <select
+                    onChange={(event) =>
+                      setFinanceForm({ ...financeForm, accountName: event.target.value })
+                    }
+                    value={financeForm.accountName}
+                  >
+                    {financeAccounts.map((account) => (
+                      <option key={account}>{account}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                Centro de costo
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, costCenterName: event.target.value })
+                  }
+                  value={financeForm.costCenterName}
+                >
+                  {costCenters.map((costCenter) => (
+                    <option key={costCenter}>{costCenter}</option>
                   ))}
                 </select>
               </label>
@@ -1155,6 +1283,28 @@ function FinanceModule({
               />
             </label>
 
+            <div className="field-row">
+              <label>
+                Estado
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({
+                      ...financeForm,
+                      status: event.target.value as FinanceMovementStatus,
+                    })
+                  }
+                  value={financeForm.status}
+                >
+                  <option value="activo">activo</option>
+                  <option value="anulado">anulado</option>
+                </select>
+              </label>
+              <label>
+                Origen
+                <input readOnly value={financeForm.sourceModule} />
+              </label>
+            </div>
+
             <label>
               Notas
               <input
@@ -1198,6 +1348,53 @@ function FinanceModule({
               </select>
             </label>
             <label>
+              Modulo
+              <select
+                onChange={(event) => setSelectedFinanceModule(event.target.value)}
+                value={selectedFinanceModule}
+              >
+                <option>Todos</option>
+                {linkedModules.map((module) => (
+                  <option key={module}>{module}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Cuenta
+              <select
+                onChange={(event) => setSelectedFinanceAccount(event.target.value)}
+                value={selectedFinanceAccount}
+              >
+                <option>Todas</option>
+                {financeAccounts.map((account) => (
+                  <option key={account}>{account}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Centro de costo
+              <select
+                onChange={(event) => setSelectedCostCenter(event.target.value)}
+                value={selectedCostCenter}
+              >
+                <option>Todos</option>
+                {costCenters.map((costCenter) => (
+                  <option key={costCenter}>{costCenter}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Estado
+              <select
+                onChange={(event) => setSelectedFinanceStatus(event.target.value)}
+                value={selectedFinanceStatus}
+              >
+                <option>Todos</option>
+                <option value="activo">activo</option>
+                <option value="anulado">anulado</option>
+              </select>
+            </label>
+            <label>
               Mes
               <input
                 onChange={(event) => setSelectedMonth(event.target.value)}
@@ -1206,6 +1403,10 @@ function FinanceModule({
               />
             </label>
           </div>
+
+          <p className="muted-text">
+            {financeReport.activeCount} movimientos activos en el filtro actual.
+          </p>
 
           <MovementTable movements={financeReport.filtered} money={money} />
         </section>
@@ -1697,7 +1898,11 @@ function MovementTable({
           <tr>
             <th>Fecha</th>
             <th>Caja</th>
+            <th>Modulo</th>
+            <th>Cuenta</th>
+            <th>Centro</th>
             <th>Tipo</th>
+            <th>Estado</th>
             <th>Concepto</th>
             <th>Categoria</th>
             <th>Monto</th>
@@ -1708,7 +1913,11 @@ function MovementTable({
             <tr key={movement.id}>
               <td>{formatDate(movement.movementDate)}</td>
               <td>{movement.cashboxName}</td>
+              <td>{movement.linkedModule}</td>
+              <td>{movement.accountName}</td>
+              <td>{movement.costCenterName}</td>
               <td>{movement.movementType}</td>
+              <td>{movement.status}</td>
               <td>{movement.concept}</td>
               <td>{movement.category}</td>
               <td className={movement.movementType === "egreso" ? "negative" : "positive"}>

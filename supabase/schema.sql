@@ -7,15 +7,69 @@ create table if not exists finance_cashboxes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists finance_accounts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  account_type text not null check (
+    account_type in ('ingreso', 'egreso', 'transferencia', 'inversion', 'otro')
+  ),
+  linked_module text not null default 'General' check (
+    linked_module in (
+      'Ganadero',
+      'Agricola',
+      'Maquinarias',
+      'Recursos Humanos',
+      'Financiero',
+      'Deposito',
+      'General'
+    )
+  ),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists cost_centers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  linked_module text not null default 'General' check (
+    linked_module in (
+      'Ganadero',
+      'Agricola',
+      'Maquinarias',
+      'Recursos Humanos',
+      'Financiero',
+      'Deposito',
+      'General'
+    )
+  ),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists finance_movements (
   id uuid primary key default gen_random_uuid(),
   cashbox_name text not null references finance_cashboxes(name),
+  linked_module text not null default 'General' check (
+    linked_module in (
+      'Ganadero',
+      'Agricola',
+      'Maquinarias',
+      'Recursos Humanos',
+      'Financiero',
+      'Deposito',
+      'General'
+    )
+  ),
+  account_name text not null default 'Otros' references finance_accounts(name),
+  cost_center_name text not null default 'General' references cost_centers(name),
   movement_type text not null check (movement_type in ('ingreso', 'egreso', 'transferencia')),
   movement_date date not null,
   concept text not null,
   category text not null,
   amount numeric(16, 2) not null check (amount > 0),
   currency text not null default 'PYG',
+  source_module text not null default 'manual',
+  status text not null default 'activo' check (status in ('activo', 'anulado')),
   payment_method text,
   document_number text,
   responsible text,
@@ -29,6 +83,15 @@ create index if not exists finance_movements_cashbox_date_idx
 
 create index if not exists finance_movements_type_date_idx
   on finance_movements (movement_type, movement_date desc);
+
+create index if not exists finance_movements_module_date_idx
+  on finance_movements (linked_module, movement_date desc);
+
+create index if not exists finance_movements_account_date_idx
+  on finance_movements (account_name, movement_date desc);
+
+create index if not exists finance_movements_cost_center_date_idx
+  on finance_movements (cost_center_name, movement_date desc);
 
 create table if not exists inventory_warehouses (
   id uuid primary key default gen_random_uuid(),
@@ -126,6 +189,7 @@ select
   sum(case when movement_type = 'transferencia' then amount else 0 end) as transfers,
   sum(case when movement_type = 'ingreso' then amount when movement_type = 'egreso' then -amount else 0 end) as balance
 from finance_movements
+where status = 'activo'
 group by cashbox_name, date_trunc('month', movement_date)::date;
 
 create or replace view inventory_stock_report as
@@ -138,6 +202,8 @@ from inventory_items
 group by warehouse_name;
 
 alter table finance_cashboxes enable row level security;
+alter table finance_accounts enable row level security;
+alter table cost_centers enable row level security;
 alter table finance_movements enable row level security;
 alter table inventory_warehouses enable row level security;
 alter table inventory_items enable row level security;
@@ -153,6 +219,40 @@ insert into finance_cashboxes (name) values
   ('Caja Inversiones'),
   ('Caja Maquinas'),
   ('Caja CDE')
+on conflict (name) do nothing;
+
+insert into finance_accounts (name, account_type, linked_module) values
+  ('Venta de ganado', 'ingreso', 'Ganadero'),
+  ('Venta agricola', 'ingreso', 'Agricola'),
+  ('Servicios y alquileres', 'ingreso', 'Maquinarias'),
+  ('Compra de ganado', 'egreso', 'Ganadero'),
+  ('Alimento animal', 'egreso', 'Ganadero'),
+  ('Sanidad animal', 'egreso', 'Ganadero'),
+  ('Insumos agricolas', 'egreso', 'Agricola'),
+  ('Combustible', 'egreso', 'Maquinarias'),
+  ('Mantenimiento de maquinarias', 'egreso', 'Maquinarias'),
+  ('Repuestos', 'egreso', 'Maquinarias'),
+  ('Sueldos y jornales', 'egreso', 'Recursos Humanos'),
+  ('Deposito e inventario', 'egreso', 'Deposito'),
+  ('Servicios generales', 'egreso', 'General'),
+  ('Transferencias internas', 'transferencia', 'Financiero'),
+  ('Inversiones', 'inversion', 'Financiero'),
+  ('Otros', 'otro', 'General')
+on conflict (name) do nothing;
+
+insert into cost_centers (name, linked_module) values
+  ('Ganadero Confinamiento', 'Ganadero'),
+  ('Ganadero a Pasto', 'Ganadero'),
+  ('Agricola', 'Agricola'),
+  ('Maquinarias', 'Maquinarias'),
+  ('Recursos Humanos', 'Recursos Humanos'),
+  ('Deposito Capitan', 'Deposito'),
+  ('Deposito Villagra', 'Deposito'),
+  ('Deposito Confinamiento 15 HAS', 'Deposito'),
+  ('Confinamiento 500 HAS', 'Deposito'),
+  ('Administracion CDE', 'General'),
+  ('Inversiones', 'Financiero'),
+  ('General', 'General')
 on conflict (name) do nothing;
 
 insert into inventory_warehouses (name) values
@@ -172,23 +272,71 @@ values
 on conflict (warehouse_name, sku) do nothing;
 
 insert into finance_movements
-  (cashbox_name, movement_type, movement_date, concept, category, amount, payment_method, document_number, responsible, related_party, notes)
+  (
+    cashbox_name,
+    linked_module,
+    account_name,
+    cost_center_name,
+    movement_type,
+    movement_date,
+    concept,
+    category,
+    amount,
+    payment_method,
+    document_number,
+    responsible,
+    related_party,
+    notes
+  )
 select
-  'Caja Ganadero Confinamiento', 'ingreso', date '2026-07-21', 'Venta de novillos terminados', 'Venta', 328400000,
+  'Caja Ganadero Confinamiento', 'Ganadero', 'Venta de ganado', 'Ganadero Confinamiento',
+  'ingreso', date '2026-07-21', 'Venta de novillos terminados', 'Venta', 328400000,
   'Transferencia bancaria', 'FV-00128', 'Administracion', 'Frigorifico regional', 'Operacion de cierre semanal'
 where not exists (select 1 from finance_movements where document_number = 'FV-00128');
 
 insert into finance_movements
-  (cashbox_name, movement_type, movement_date, concept, category, amount, payment_method, document_number, responsible, related_party, notes)
+  (
+    cashbox_name,
+    linked_module,
+    account_name,
+    cost_center_name,
+    movement_type,
+    movement_date,
+    concept,
+    category,
+    amount,
+    payment_method,
+    document_number,
+    responsible,
+    related_party,
+    notes
+  )
 select
-  'Caja Ganadero Confinamiento', 'egreso', date '2026-07-20', 'Compra de balanceado terminacion', 'Alimento', 68400000,
+  'Caja Ganadero Confinamiento', 'Ganadero', 'Alimento animal', 'Ganadero Confinamiento',
+  'egreso', date '2026-07-20', 'Compra de balanceado terminacion', 'Alimento', 68400000,
   'Transferencia bancaria', 'FC-00451', 'Compras', 'Nutricion Campo', 'Reposicion mensual'
 where not exists (select 1 from finance_movements where document_number = 'FC-00451');
 
 insert into finance_movements
-  (cashbox_name, movement_type, movement_date, concept, category, amount, payment_method, document_number, responsible, related_party, notes)
+  (
+    cashbox_name,
+    linked_module,
+    account_name,
+    cost_center_name,
+    movement_type,
+    movement_date,
+    concept,
+    category,
+    amount,
+    payment_method,
+    document_number,
+    responsible,
+    related_party,
+    notes
+  )
 select
-  'Caja Agricola', 'egreso', date '2026-07-17', 'Semillas y fertilizante', 'Agricola', 95800000,
+  'Caja Agricola', 'Agricola', 'Insumos agricolas', 'Agricola',
+  'egreso', date '2026-07-17', 'Semillas y fertilizante', 'Agricola', 95800000,
   'Cheque', 'FC-00439', 'Compras', 'Agroinsumos Central', 'Campana de invierno'
 where not exists (select 1 from finance_movements where document_number = 'FC-00439');
 

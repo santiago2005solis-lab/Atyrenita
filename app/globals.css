@@ -230,6 +230,40 @@ h4 {
   color: white;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.status-banner span {
+  display: inline-flex;
+  min-width: max-content;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 0.78rem;
+}
+
+.status-banner.danger {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -279,6 +313,14 @@ h4 {
 
 .content-grid.form-layout {
   grid-template-columns: minmax(300px, 400px) minmax(480px, 1fr);
+}
+
+.content-grid.finance-layout {
+  grid-template-columns: minmax(320px, 420px) minmax(520px, 1fr);
+}
+
+.content-grid.inventory-layout {
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
 }
 
 .panel {
@@ -406,7 +448,7 @@ h4 {
 
 .segmented {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -464,6 +506,17 @@ select:focus {
   gap: 10px;
 }
 
+.report-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 240px);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.inline-filter {
+  width: min(260px, 100%);
+}
+
 .submit-button {
   min-height: 46px;
   border-radius: 8px;
@@ -517,6 +570,66 @@ th:last-child {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.cashbox-grid,
+.warehouse-grid,
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cashbox-card,
+.warehouse-card,
+.roadmap-card {
+  display: grid;
+  gap: 10px;
+  min-height: 138px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.cashbox-card span,
+.warehouse-card span,
+.roadmap-card span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.cashbox-card strong,
+.warehouse-card strong,
+.roadmap-card strong {
+  font-size: 1.12rem;
+}
+
+.cashbox-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.cashbox-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.cashbox-card dd {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.warehouse-card small {
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .lot-card {
@@ -634,7 +747,7 @@ th:last-child {
   }
 
   .nav-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .nav-tabs button {
@@ -655,7 +768,9 @@ th:last-child {
   }
 
   .content-grid,
-  .content-grid.form-layout {
+  .content-grid.form-layout,
+  .content-grid.finance-layout,
+  .content-grid.inventory-layout {
     grid-template-columns: 1fr;
   }
 
@@ -684,6 +799,10 @@ th:last-child {
   .kpi-grid,
   .flow-chart,
   .lot-grid,
+  .cashbox-grid,
+  .warehouse-grid,
+  .roadmap-grid,
+  .report-controls,
   .summary-grid,
   .field-row {
     grid-template-columns: 1fr;

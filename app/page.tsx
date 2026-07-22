@@ -1,291 +1,409 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  cashboxes,
+  demoData,
+  financeCategories,
+  inventoryCategories,
+  inventoryUnits,
+  paymentMethods,
+  warehouses,
+  type AppData,
+  type FinanceMovement,
+  type FinanceMovementType,
+  type InventoryItem,
+  type InventoryMovement,
+  type InventoryMovementType,
+} from "@/lib/company-data";
 
-type MovementType = "ingreso" | "gasto";
-type TabId = "resumen" | "movimientos" | "ganado" | "reportes";
+type ModuleId = "finanzas" | "deposito" | "rrhh";
+type SavingTarget = "finance" | "item" | "inventory-movement" | null;
 
-type Movement = {
-  id: number;
-  type: MovementType;
-  date: string;
+type FinanceForm = {
+  amount: string;
+  cashboxName: string;
+  category: string;
   concept: string;
-  category: string;
-  account: string;
-  amount: number;
-  lot: string;
+  documentNumber: string;
+  movementDate: string;
+  movementType: FinanceMovementType;
+  notes: string;
+  paymentMethod: string;
+  relatedParty: string;
+  responsible: string;
 };
 
-type Lot = {
+type ItemForm = {
+  category: string;
+  currentStock: string;
+  minStock: string;
   name: string;
-  category: string;
-  animals: number;
-  avgWeight: number;
-  cost: number;
-  priceKg: number;
-  status: string;
+  sku: string;
+  supplier: string;
+  unit: string;
+  unitCost: string;
+  warehouseName: string;
 };
 
-const incomeCategories = ["Venta ganado", "Leche", "Servicios", "Alquiler", "Otros ingresos"];
-const expenseCategories = [
-  "Alimento",
-  "Sanidad",
-  "Personal",
-  "Combustible",
-  "Mantenimiento",
-  "Fletes",
-  "Impuestos",
-  "Compra ganado",
-];
+type InventoryMovementForm = {
+  documentNumber: string;
+  itemId: string;
+  movementDate: string;
+  movementType: InventoryMovementType;
+  notes: string;
+  quantity: string;
+  responsible: string;
+  targetWarehouseName: string;
+  unitCost: string;
+};
 
-const accounts = ["Banco principal", "Caja campo", "Cuenta ahorro", "Tarjeta corporativa"];
-const lots = ["Recria Norte", "Cria Tajamar", "Engorde Sur", "Vaquillas Este"];
+const today = new Date().toISOString().slice(0, 10);
 
-const seedMovements: Movement[] = [
-  {
-    id: 1,
-    type: "ingreso",
-    date: "2026-07-20",
-    concept: "Venta de 42 novillos terminados",
-    category: "Venta ganado",
-    account: "Banco principal",
-    amount: 328400000,
-    lot: "Engorde Sur",
-  },
-  {
-    id: 2,
-    type: "gasto",
-    date: "2026-07-18",
-    concept: "Balanceado terminacion",
-    category: "Alimento",
-    account: "Banco principal",
-    amount: 68400000,
-    lot: "Engorde Sur",
-  },
-  {
-    id: 3,
-    type: "gasto",
-    date: "2026-07-16",
-    concept: "Vacunas y antiparasitario",
-    category: "Sanidad",
-    account: "Caja campo",
-    amount: 19300000,
-    lot: "Recria Norte",
-  },
-  {
-    id: 4,
-    type: "gasto",
-    date: "2026-07-12",
-    concept: "Jornales y encargados",
-    category: "Personal",
-    account: "Banco principal",
-    amount: 44200000,
-    lot: "General",
-  },
-  {
-    id: 5,
-    type: "ingreso",
-    date: "2026-07-10",
-    concept: "Venta mensual de leche",
-    category: "Leche",
-    account: "Banco principal",
-    amount: 47400000,
-    lot: "Cria Tajamar",
-  },
-  {
-    id: 6,
-    type: "gasto",
-    date: "2026-07-08",
-    concept: "Flete a feria",
-    category: "Fletes",
-    account: "Tarjeta corporativa",
-    amount: 11800000,
-    lot: "Engorde Sur",
-  },
-];
+const initialFinanceForm: FinanceForm = {
+  amount: "",
+  cashboxName: cashboxes[0],
+  category: financeCategories[0],
+  concept: "",
+  documentNumber: "",
+  movementDate: today,
+  movementType: "ingreso",
+  notes: "",
+  paymentMethod: paymentMethods[1],
+  relatedParty: "",
+  responsible: "",
+};
 
-const herdLots: Lot[] = [
-  {
-    name: "Recria Norte",
-    category: "Novillos recria",
-    animals: 184,
-    avgWeight: 318,
-    cost: 892000000,
-    priceKg: 16700,
-    status: "Ganancia diaria estable",
-  },
-  {
-    name: "Cria Tajamar",
-    category: "Vacas cria",
-    animals: 226,
-    avgWeight: 402,
-    cost: 1016000000,
-    priceKg: 12600,
-    status: "Paricion monitoreada",
-  },
-  {
-    name: "Engorde Sur",
-    category: "Novillos terminacion",
-    animals: 139,
-    avgWeight: 462,
-    cost: 1198000000,
-    priceKg: 17100,
-    status: "Listo para ventas parciales",
-  },
-  {
-    name: "Vaquillas Este",
-    category: "Reposicion",
-    animals: 96,
-    avgWeight: 286,
-    cost: 418000000,
-    priceKg: 13900,
-    status: "Servicio programado",
-  },
-];
+const initialItemForm: ItemForm = {
+  category: inventoryCategories[0],
+  currentStock: "",
+  minStock: "",
+  name: "",
+  sku: "",
+  supplier: "",
+  unit: inventoryUnits[0],
+  unitCost: "",
+  warehouseName: warehouses[0],
+};
 
-const monthlyFlow = [
-  { month: "Abr", income: 242000000, expense: 186000000 },
-  { month: "May", income: 294000000, expense: 214000000 },
-  { month: "Jun", income: 366000000, expense: 238000000 },
-  { month: "Jul", income: 375800000, expense: 143700000 },
-];
+const initialInventoryMovementForm: InventoryMovementForm = {
+  documentNumber: "",
+  itemId: demoData.inventoryItems[0]?.id ?? "",
+  movementDate: today,
+  movementType: "entrada",
+  notes: "",
+  quantity: "",
+  responsible: "",
+  targetWarehouseName: warehouses[1],
+  unitCost: "",
+};
 
-const reportCards = [
-  { label: "Cuentas por cobrar", value: 86500000, tone: "blue" },
-  { label: "Cuentas por pagar", value: 52800000, tone: "amber" },
-  { label: "Caja minima sugerida", value: 120000000, tone: "green" },
-];
+export default function AppPage() {
+  const [activeModule, setActiveModule] = useState<ModuleId>("finanzas");
+  const [data, setData] = useState<AppData>(demoData);
+  const [financeForm, setFinanceForm] = useState<FinanceForm>(initialFinanceForm);
+  const [itemForm, setItemForm] = useState<ItemForm>(initialItemForm);
+  const [movementForm, setMovementForm] = useState<InventoryMovementForm>(
+    initialInventoryMovementForm,
+  );
+  const [selectedCashbox, setSelectedCashbox] = useState("Todas");
+  const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
+  const [selectedWarehouse, setSelectedWarehouse] = useState("Todos");
+  const [saving, setSaving] = useState<SavingTarget>(null);
+  const [statusMessage, setStatusMessage] = useState("Cargando datos del sistema...");
 
-function formatDate(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
-}
+  useEffect(() => {
+    let isMounted = true;
 
-function AppPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("resumen");
-  const [movements, setMovements] = useState<Movement[]>(seedMovements);
-  const [isReady, setIsReady] = useState(false);
-  const [form, setForm] = useState({
-    type: "ingreso" as MovementType,
-    date: "2026-07-22",
-    concept: "",
-    category: incomeCategories[0],
-    account: accounts[0],
-    amount: "",
-    lot: lots[0],
-  });
+    async function loadInitialData() {
+      try {
+        const response = await fetch("/api/bootstrap", { cache: "no-store" });
+        const payload = (await response.json()) as AppData;
+        if (!isMounted) return;
+        setData(payload);
+        setStatusMessage(payload.storageMessage ?? "Datos cargados.");
+      } catch {
+        if (!isMounted) return;
+        setData(demoData);
+        setStatusMessage("Modo demo activo.");
+      }
+    }
 
-  const currency = useMemo(
+    void loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const moneyFormatter = useMemo(
     () =>
       new Intl.NumberFormat("es-PY", {
-        style: "currency",
         currency: "PYG",
         maximumFractionDigits: 0,
+        style: "currency",
       }),
     [],
   );
 
-  const money = (value: number) => currency.format(value).replace("PYG", "Gs.");
+  const money = (value: number) => moneyFormatter.format(value).replace("PYG", "Gs.");
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem("ganado-finanzas-movements");
-    if (saved) {
-      try {
-        setMovements(JSON.parse(saved) as Movement[]);
-      } catch {
-        setMovements(seedMovements);
-      }
-    }
-    setIsReady(true);
-  }, []);
+  const financeReport = useMemo(() => {
+    const filtered = data.financeMovements.filter((movement) => {
+      const byCashbox = selectedCashbox === "Todas" || movement.cashboxName === selectedCashbox;
+      const byMonth = !selectedMonth || movement.movementDate.startsWith(selectedMonth);
+      return byCashbox && byMonth;
+    });
 
-  useEffect(() => {
-    if (isReady) {
-      window.localStorage.setItem("ganado-finanzas-movements", JSON.stringify(movements));
-    }
-  }, [isReady, movements]);
-
-  const totals = useMemo(() => {
-    const income = movements
-      .filter((movement) => movement.type === "ingreso")
+    const income = filtered
+      .filter((movement) => movement.movementType === "ingreso")
       .reduce((sum, movement) => sum + movement.amount, 0);
-    const expense = movements
-      .filter((movement) => movement.type === "gasto")
+    const expense = filtered
+      .filter((movement) => movement.movementType === "egreso")
       .reduce((sum, movement) => sum + movement.amount, 0);
-    const animals = herdLots.reduce((sum, lot) => sum + lot.animals, 0);
-    const stockValue = herdLots.reduce(
-      (sum, lot) => sum + lot.animals * lot.avgWeight * lot.priceKg,
-      0,
-    );
+    const transfer = filtered
+      .filter((movement) => movement.movementType === "transferencia")
+      .reduce((sum, movement) => sum + movement.amount, 0);
 
     return {
-      income,
-      expense,
       balance: income - expense,
-      animals,
-      stockValue,
-      costPerAnimal: Math.round(expense / animals),
-      operatingMargin: income > 0 ? Math.round(((income - expense) / income) * 100) : 0,
+      expense,
+      filtered,
+      income,
+      transfer,
     };
-  }, [movements]);
+  }, [data.financeMovements, selectedCashbox, selectedMonth]);
 
-  const expenseByCategory = useMemo(() => {
-    return expenseCategories
-      .map((category) => ({
-        category,
-        value: movements
-          .filter((movement) => movement.type === "gasto" && movement.category === category)
-          .reduce((sum, movement) => sum + movement.amount, 0),
-      }))
-      .filter((item) => item.value > 0)
-      .sort((a, b) => b.value - a.value);
-  }, [movements]);
+  const cashboxSummaries = useMemo(() => {
+    return data.cashboxes.map((cashbox) => {
+      const movements = data.financeMovements.filter(
+        (movement) => movement.cashboxName === cashbox,
+      );
+      const income = movements
+        .filter((movement) => movement.movementType === "ingreso")
+        .reduce((sum, movement) => sum + movement.amount, 0);
+      const expense = movements
+        .filter((movement) => movement.movementType === "egreso")
+        .reduce((sum, movement) => sum + movement.amount, 0);
+      const transfer = movements
+        .filter((movement) => movement.movementType === "transferencia")
+        .reduce((sum, movement) => sum + movement.amount, 0);
 
-  const accountBalances = useMemo(() => {
-    return accounts.map((account) => {
-      const balance = movements
-        .filter((movement) => movement.account === account)
-        .reduce(
-          (sum, movement) =>
-            movement.type === "ingreso" ? sum + movement.amount : sum - movement.amount,
-          0,
-        );
-      return { account, balance };
+      return {
+        balance: income - expense,
+        cashbox,
+        expense,
+        income,
+        transfer,
+      };
     });
-  }, [movements]);
+  }, [data.cashboxes, data.financeMovements]);
 
-  const latestMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date));
-  const categoryOptions = form.type === "ingreso" ? incomeCategories : expenseCategories;
+  const inventoryReport = useMemo(() => {
+    const filteredItems = data.inventoryItems.filter(
+      (item) => selectedWarehouse === "Todos" || item.warehouseName === selectedWarehouse,
+    );
+    const value = filteredItems.reduce(
+      (sum, item) => sum + item.currentStock * item.unitCost,
+      0,
+    );
+    const lowStock = filteredItems.filter((item) => item.currentStock <= item.minStock);
 
-  function submitMovement(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const amount = Number(form.amount);
+    const byWarehouse = data.warehouses.map((warehouse) => {
+      const items = data.inventoryItems.filter((item) => item.warehouseName === warehouse);
+      const stockValue = items.reduce(
+        (sum, item) => sum + item.currentStock * item.unitCost,
+        0,
+      );
+      return {
+        items,
+        lowStock: items.filter((item) => item.currentStock <= item.minStock).length,
+        stockValue,
+        warehouse,
+      };
+    });
 
-    if (!form.concept.trim() || Number.isNaN(amount) || amount <= 0) {
-      return;
-    }
-
-    const nextMovement: Movement = {
-      id: Date.now(),
-      type: form.type,
-      date: form.date,
-      concept: form.concept.trim(),
-      category: form.category,
-      account: form.account,
-      amount,
-      lot: form.lot,
+    return {
+      byWarehouse,
+      filteredItems,
+      lowStock,
+      value,
     };
+  }, [data.inventoryItems, data.warehouses, selectedWarehouse]);
+  const selectedItem =
+    inventoryReport.filteredItems.find((item) => item.id === movementForm.itemId) ??
+    inventoryReport.filteredItems[0];
 
-    setMovements((current) => [nextMovement, ...current]);
-    setForm((current) => ({ ...current, concept: "", amount: "" }));
+  async function submitFinanceMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving("finance");
+
+    try {
+      const response = await fetch("/api/finance/movements", {
+        body: JSON.stringify({
+          ...financeForm,
+          amount: Number(financeForm.amount),
+          currency: "PYG",
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo guardar.");
+
+      setData((current) => ({
+        ...current,
+        financeMovements: [payload.movement as FinanceMovement, ...current.financeMovements],
+        storageMode: payload.storageMode ?? current.storageMode,
+      }));
+      setFinanceForm((current) => ({
+        ...initialFinanceForm,
+        cashboxName: current.cashboxName,
+        movementDate: current.movementDate,
+      }));
+      setStatusMessage(
+        payload.storageMode === "supabase"
+          ? "Movimiento guardado en Supabase."
+          : "Movimiento agregado en modo demo.",
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(null);
+    }
   }
 
-  function setMovementType(type: MovementType) {
-    setForm((current) => ({
-      ...current,
-      type,
-      category: type === "ingreso" ? incomeCategories[0] : expenseCategories[0],
-    }));
+  async function submitInventoryItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving("item");
+
+    try {
+      const response = await fetch("/api/inventory/items", {
+        body: JSON.stringify({
+          ...itemForm,
+          currentStock: Number(itemForm.currentStock),
+          minStock: Number(itemForm.minStock || 0),
+          unitCost: Number(itemForm.unitCost || 0),
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo guardar.");
+
+      setData((current) => ({
+        ...current,
+        inventoryItems: [...current.inventoryItems, payload.item as InventoryItem],
+        storageMode: payload.storageMode ?? current.storageMode,
+      }));
+      setItemForm((current) => ({
+        ...initialItemForm,
+        warehouseName: current.warehouseName,
+      }));
+      setStatusMessage(
+        payload.storageMode === "supabase"
+          ? "Articulo guardado en Supabase."
+          : "Articulo agregado en modo demo.",
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function submitInventoryMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedItem) return;
+    setSaving("inventory-movement");
+
+    try {
+      const response = await fetch("/api/inventory/movements", {
+        body: JSON.stringify({
+          ...movementForm,
+          itemId: selectedItem.id,
+          quantity: Number(movementForm.quantity),
+          unitCost: Number(movementForm.unitCost || selectedItem.unitCost),
+          warehouseName: selectedItem.warehouseName,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo guardar.");
+
+      const movement = payload.movement as InventoryMovement;
+      const updatedItem =
+        (payload.item as InventoryItem | undefined) ??
+        calculateLocalStock(selectedItem, movement.movementType, movement.quantity);
+
+      setData((current) => ({
+        ...current,
+        inventoryItems: current.inventoryItems.map((item) =>
+          item.id === updatedItem.id ? updatedItem : item,
+        ),
+        inventoryMovements: [movement, ...current.inventoryMovements],
+        storageMode: payload.storageMode ?? current.storageMode,
+      }));
+      setMovementForm((current) => ({
+        ...initialInventoryMovementForm,
+        itemId: current.itemId,
+        movementDate: current.movementDate,
+      }));
+      setStatusMessage(
+        payload.storageMode === "supabase"
+          ? "Movimiento de deposito guardado en Supabase."
+          : "Movimiento de deposito agregado en modo demo.",
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function exportFinanceCsv() {
+    const headers = [
+      "Fecha",
+      "Caja",
+      "Tipo",
+      "Concepto",
+      "Categoria",
+      "Monto",
+      "Medio",
+      "Comprobante",
+      "Responsable",
+      "Contraparte",
+      "Notas",
+    ];
+    const rows = financeReport.filtered.map((movement) => [
+      movement.movementDate,
+      movement.cashboxName,
+      movement.movementType,
+      movement.concept,
+      movement.category,
+      String(movement.amount),
+      movement.paymentMethod,
+      movement.documentNumber,
+      movement.responsible,
+      movement.relatedParty,
+      movement.notes,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","),
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `reporte-finanzas-${selectedMonth || "todo"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -296,393 +414,792 @@ function AppPage() {
             GF
           </div>
           <div>
-            <p className="eyebrow">Sistema web</p>
+            <p className="eyebrow">Sistema empresarial</p>
             <h1>GanadoFinanzas</h1>
           </div>
         </div>
 
-        <nav className="nav-tabs" aria-label="Vistas">
+        <nav className="nav-tabs" aria-label="Modulos">
           {[
-            { id: "resumen", label: "Resumen" },
-            { id: "movimientos", label: "Movimientos" },
-            { id: "ganado", label: "Ganado" },
-            { id: "reportes", label: "Reportes" },
-          ].map((tab) => (
+            { id: "finanzas", label: "Finanzas", mark: "F" },
+            { id: "deposito", label: "Deposito", mark: "D" },
+            { id: "rrhh", label: "Recursos Humanos", mark: "RH" },
+          ].map((module) => (
             <button
-              aria-pressed={activeTab === tab.id}
-              className={activeTab === tab.id ? "active" : ""}
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabId)}
+              aria-pressed={activeModule === module.id}
+              className={activeModule === module.id ? "active" : ""}
+              key={module.id}
+              onClick={() => setActiveModule(module.id as ModuleId)}
               type="button"
             >
-              <span aria-hidden="true">{tab.label.slice(0, 1)}</span>
-              {tab.label}
+              <span aria-hidden="true">{module.mark}</span>
+              {module.label}
             </button>
           ))}
         </nav>
 
         <div className="sidebar-summary">
-          <p>Periodo activo</p>
-          <strong>Julio 2026</strong>
-          <span>Estancia San Miguel</span>
+          <p>Estado de datos</p>
+          <strong>{data.storageMode === "supabase" ? "Supabase" : "Demo"}</strong>
+          <span>{statusMessage}</span>
         </div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Control financiero ganadero</p>
-            <h2>Operacion, caja y stock en una sola vista</h2>
+            <p className="eyebrow">Sistema web con Supabase y Vercel</p>
+            <h2>Administracion general por modulos</h2>
           </div>
           <div className="topbar-actions">
-            <button type="button" onClick={() => setActiveTab("movimientos")}>
-              + Movimiento
+            <button type="button" onClick={() => setActiveModule("finanzas")}>
+              Registrar caja
             </button>
-            <button type="button" onClick={() => setActiveTab("reportes")}>
-              Ver reportes
+            <button type="button" onClick={() => setActiveModule("deposito")}>
+              Stock deposito
             </button>
           </div>
         </header>
 
-        <section className="kpi-grid" aria-label="Indicadores principales">
-          <article className="kpi-card">
-            <span>Caja neta del mes</span>
-            <strong>{money(totals.balance)}</strong>
-            <em>{totals.operatingMargin}% margen operativo</em>
-          </article>
-          <article className="kpi-card">
-            <span>Ingresos</span>
-            <strong>{money(totals.income)}</strong>
-            <em>Ventas, leche y servicios</em>
-          </article>
-          <article className="kpi-card warning">
-            <span>Egresos</span>
-            <strong>{money(totals.expense)}</strong>
-            <em>{money(totals.costPerAnimal)} por animal</em>
-          </article>
-          <article className="kpi-card blue">
-            <span>Valor stock ganadero</span>
-            <strong>{money(totals.stockValue)}</strong>
-            <em>{totals.animals} cabezas registradas</em>
-          </article>
-        </section>
+        {data.storageError && <div className="status-banner danger">{data.storageError}</div>}
+        <div className="status-banner">
+          <span>{data.storageMode === "supabase" ? "Base activa" : "Modo demo"}</span>
+          {statusMessage}
+        </div>
 
-        {activeTab === "resumen" && (
-          <div className="content-grid">
-            <section className="panel wide">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Flujo de caja</p>
-                  <h3>Resultado por mes</h3>
-                </div>
-                <span>Ingresos vs egresos</span>
-              </div>
-
-              <div className="flow-chart">
-                {monthlyFlow.map((item) => {
-                  const incomeHeight = Math.max(18, (item.income / 390000000) * 100);
-                  const expenseHeight = Math.max(18, (item.expense / 390000000) * 100);
-
-                  return (
-                    <div className="flow-month" key={item.month}>
-                      <div className="bars" aria-label={`Mes ${item.month}`}>
-                        <span
-                          className="bar income"
-                          style={{ height: `${incomeHeight}%` }}
-                          title={`Ingresos ${money(item.income)}`}
-                        />
-                        <span
-                          className="bar expense"
-                          style={{ height: `${expenseHeight}%` }}
-                          title={`Egresos ${money(item.expense)}`}
-                        />
-                      </div>
-                      <strong>{item.month}</strong>
-                      <small>{money(item.income - item.expense)}</small>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Cuentas</p>
-                  <h3>Saldos operativos</h3>
-                </div>
-              </div>
-
-              <div className="account-list">
-                {accountBalances.map((item) => (
-                  <div className="account-row" key={item.account}>
-                    <span>{item.account}</span>
-                    <strong className={item.balance < 0 ? "negative" : ""}>{money(item.balance)}</strong>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="panel wide">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Ultimos movimientos</p>
-                  <h3>Caja reciente</h3>
-                </div>
-                <button type="button" onClick={() => setActiveTab("movimientos")}>
-                  Cargar
-                </button>
-              </div>
-
-              <MovementTable movements={latestMovements.slice(0, 5)} money={money} />
-            </section>
-          </div>
+        {activeModule === "finanzas" && (
+          <FinanceModule
+            cashboxSummaries={cashboxSummaries}
+            exportFinanceCsv={exportFinanceCsv}
+            financeForm={financeForm}
+            financeReport={financeReport}
+            money={money}
+            saving={saving}
+            selectedCashbox={selectedCashbox}
+            selectedMonth={selectedMonth}
+            setFinanceForm={setFinanceForm}
+            setSelectedCashbox={setSelectedCashbox}
+            setSelectedMonth={setSelectedMonth}
+            submitFinanceMovement={submitFinanceMovement}
+          />
         )}
 
-        {activeTab === "movimientos" && (
-          <div className="content-grid form-layout">
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Registro</p>
-                  <h3>Nuevo movimiento</h3>
-                </div>
-              </div>
-
-              <form className="movement-form" onSubmit={submitMovement}>
-                <div className="segmented" role="group" aria-label="Tipo de movimiento">
-                  <button
-                    className={form.type === "ingreso" ? "selected" : ""}
-                    onClick={() => setMovementType("ingreso")}
-                    type="button"
-                  >
-                    + Ingreso
-                  </button>
-                  <button
-                    className={form.type === "gasto" ? "selected danger" : ""}
-                    onClick={() => setMovementType("gasto")}
-                    type="button"
-                  >
-                    - Gasto
-                  </button>
-                </div>
-
-                <label>
-                  Concepto
-                  <input
-                    onChange={(event) => setForm({ ...form, concept: event.target.value })}
-                    placeholder="Ej. compra de suplemento"
-                    value={form.concept}
-                  />
-                </label>
-
-                <div className="field-row">
-                  <label>
-                    Monto
-                    <input
-                      inputMode="numeric"
-                      onChange={(event) => setForm({ ...form, amount: event.target.value })}
-                      placeholder="0"
-                      value={form.amount}
-                    />
-                  </label>
-                  <label>
-                    Fecha
-                    <input
-                      onChange={(event) => setForm({ ...form, date: event.target.value })}
-                      type="date"
-                      value={form.date}
-                    />
-                  </label>
-                </div>
-
-                <label>
-                  Categoria
-                  <select
-                    onChange={(event) => setForm({ ...form, category: event.target.value })}
-                    value={form.category}
-                  >
-                    {categoryOptions.map((category) => (
-                      <option key={category}>{category}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="field-row">
-                  <label>
-                    Cuenta
-                    <select
-                      onChange={(event) => setForm({ ...form, account: event.target.value })}
-                      value={form.account}
-                    >
-                      {accounts.map((account) => (
-                        <option key={account}>{account}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Lote
-                    <select
-                      onChange={(event) => setForm({ ...form, lot: event.target.value })}
-                      value={form.lot}
-                    >
-                      {[...lots, "General"].map((lot) => (
-                        <option key={lot}>{lot}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <button className="submit-button" type="submit">
-                  Guardar movimiento
-                </button>
-              </form>
-            </section>
-
-            <section className="panel wide">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Libro diario</p>
-                  <h3>Movimientos registrados</h3>
-                </div>
-                <span>{movements.length} items</span>
-              </div>
-              <MovementTable movements={latestMovements} money={money} />
-            </section>
-          </div>
+        {activeModule === "deposito" && (
+          <InventoryModule
+            inventoryReport={inventoryReport}
+            itemForm={itemForm}
+            money={money}
+            movementForm={movementForm}
+            saving={saving}
+            selectedItem={selectedItem}
+            selectedWarehouse={selectedWarehouse}
+            setItemForm={setItemForm}
+            setMovementForm={setMovementForm}
+            setSelectedWarehouse={setSelectedWarehouse}
+            submitInventoryItem={submitInventoryItem}
+            submitInventoryMovement={submitInventoryMovement}
+          />
         )}
 
-        {activeTab === "ganado" && (
-          <div className="content-grid">
-            <section className="panel wide">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Inventario</p>
-                  <h3>Lotes ganaderos</h3>
-                </div>
-                <span>{totals.animals} cabezas</span>
-              </div>
-
-              <div className="lot-grid">
-                {herdLots.map((lot) => {
-                  const value = lot.animals * lot.avgWeight * lot.priceKg;
-                  const margin = value - lot.cost;
-
-                  return (
-                    <article className="lot-card" key={lot.name}>
-                      <div>
-                        <span>{lot.category}</span>
-                        <h4>{lot.name}</h4>
-                      </div>
-                      <dl>
-                        <div>
-                          <dt>Cabezas</dt>
-                          <dd>{lot.animals}</dd>
-                        </div>
-                        <div>
-                          <dt>Peso medio</dt>
-                          <dd>{lot.avgWeight} kg</dd>
-                        </div>
-                        <div>
-                          <dt>Valor estimado</dt>
-                          <dd>{money(value)}</dd>
-                        </div>
-                        <div>
-                          <dt>Margen sobre costo</dt>
-                          <dd className={margin < 0 ? "negative" : "positive"}>{money(margin)}</dd>
-                        </div>
-                      </dl>
-                      <p>{lot.status}</p>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {activeTab === "reportes" && (
-          <div className="content-grid">
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Costos</p>
-                  <h3>Egresos por categoria</h3>
-                </div>
-              </div>
-
-              <div className="expense-list">
-                {expenseByCategory.map((item) => {
-                  const width = totals.expense ? (item.value / totals.expense) * 100 : 0;
-                  return (
-                    <div className="expense-item" key={item.category}>
-                      <div>
-                        <span>{item.category}</span>
-                        <strong>{money(item.value)}</strong>
-                      </div>
-                      <div className="meter" aria-hidden="true">
-                        <span style={{ width: `${width}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Gestion</p>
-                  <h3>Indicadores pendientes</h3>
-                </div>
-              </div>
-
-              <div className="report-stack">
-                {reportCards.map((card) => (
-                  <article className={`report-card ${card.tone}`} key={card.label}>
-                    <span>{card.label}</span>
-                    <strong>{money(card.value)}</strong>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className="panel wide">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Rentabilidad</p>
-                  <h3>Resumen operativo</h3>
-                </div>
-              </div>
-
-              <div className="summary-grid">
-                <div>
-                  <span>Margen mensual</span>
-                  <strong>{totals.operatingMargin}%</strong>
-                </div>
-                <div>
-                  <span>Costo por cabeza</span>
-                  <strong>{money(totals.costPerAnimal)}</strong>
-                </div>
-                <div>
-                  <span>Stock valorizado</span>
-                  <strong>{money(totals.stockValue)}</strong>
-                </div>
-              </div>
-            </section>
-          </div>
+        {activeModule === "rrhh" && (
+          <HumanResourcesModule employees={data.hrEmployees} money={money} />
         )}
       </section>
     </main>
   );
 }
 
-function MovementTable({
-  movements,
+function FinanceModule({
+  cashboxSummaries,
+  exportFinanceCsv,
+  financeForm,
+  financeReport,
+  money,
+  saving,
+  selectedCashbox,
+  selectedMonth,
+  setFinanceForm,
+  setSelectedCashbox,
+  setSelectedMonth,
+  submitFinanceMovement,
+}: {
+  cashboxSummaries: Array<{
+    balance: number;
+    cashbox: string;
+    expense: number;
+    income: number;
+    transfer: number;
+  }>;
+  exportFinanceCsv: () => void;
+  financeForm: FinanceForm;
+  financeReport: {
+    balance: number;
+    expense: number;
+    filtered: FinanceMovement[];
+    income: number;
+    transfer: number;
+  };
+  money: (value: number) => string;
+  saving: SavingTarget;
+  selectedCashbox: string;
+  selectedMonth: string;
+  setFinanceForm: (form: FinanceForm) => void;
+  setSelectedCashbox: (cashbox: string) => void;
+  setSelectedMonth: (month: string) => void;
+  submitFinanceMovement: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <section className="kpi-grid" aria-label="Indicadores de finanzas">
+        <KpiCard label="Saldo neto filtrado" value={money(financeReport.balance)} />
+        <KpiCard label="Ingresos" value={money(financeReport.income)} />
+        <KpiCard label="Egresos" tone="warning" value={money(financeReport.expense)} />
+        <KpiCard label="Transferencias" tone="blue" value={money(financeReport.transfer)} />
+      </section>
+
+      <div className="content-grid finance-layout">
+        <section className="panel">
+          <PanelHeading eyebrow="Finanzas" title="Nuevo movimiento de caja" />
+          <form className="movement-form" onSubmit={submitFinanceMovement}>
+            <div className="segmented" role="group" aria-label="Tipo de movimiento">
+              {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
+                <button
+                  className={financeForm.movementType === type ? "selected" : ""}
+                  key={type}
+                  onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
+                  type="button"
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <label>
+              Caja
+              <select
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, cashboxName: event.target.value })
+                }
+                value={financeForm.cashboxName}
+              >
+                {cashboxes.map((cashbox) => (
+                  <option key={cashbox}>{cashbox}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Concepto
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, concept: event.target.value })
+                }
+                placeholder="Ej. venta, compra, anticipo"
+                value={financeForm.concept}
+              />
+            </label>
+
+            <div className="field-row">
+              <label>
+                Monto
+                <input
+                  inputMode="numeric"
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, amount: event.target.value })
+                  }
+                  placeholder="0"
+                  value={financeForm.amount}
+                />
+              </label>
+              <label>
+                Fecha
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, movementDate: event.target.value })
+                  }
+                  type="date"
+                  value={financeForm.movementDate}
+                />
+              </label>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Categoria
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, category: event.target.value })
+                  }
+                  value={financeForm.category}
+                >
+                  {financeCategories.map((category) => (
+                    <option key={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Medio
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, paymentMethod: event.target.value })
+                  }
+                  value={financeForm.paymentMethod}
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method}>{method}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Comprobante
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, documentNumber: event.target.value })
+                  }
+                  placeholder="Factura, recibo, transferencia"
+                  value={financeForm.documentNumber}
+                />
+              </label>
+              <label>
+                Responsable
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, responsible: event.target.value })
+                  }
+                  placeholder="Persona o sector"
+                  value={financeForm.responsible}
+                />
+              </label>
+            </div>
+
+            <label>
+              Contraparte
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, relatedParty: event.target.value })
+                }
+                placeholder="Cliente, proveedor o caja destino"
+                value={financeForm.relatedParty}
+              />
+            </label>
+
+            <label>
+              Notas
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, notes: event.target.value })
+                }
+                placeholder="Detalle interno"
+                value={financeForm.notes}
+              />
+            </label>
+
+            <button className="submit-button" disabled={saving === "finance"} type="submit">
+              {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
+            </button>
+          </form>
+        </section>
+
+        <section className="panel wide">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Reportes</p>
+              <h3>Movimientos por caja</h3>
+            </div>
+            <button type="button" onClick={exportFinanceCsv}>
+              Exportar CSV
+            </button>
+          </div>
+
+          <div className="report-controls">
+            <label>
+              Caja
+              <select
+                onChange={(event) => setSelectedCashbox(event.target.value)}
+                value={selectedCashbox}
+              >
+                <option>Todas</option>
+                {cashboxes.map((cashbox) => (
+                  <option key={cashbox}>{cashbox}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Mes
+              <input
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                type="month"
+                value={selectedMonth}
+              />
+            </label>
+          </div>
+
+          <MovementTable movements={financeReport.filtered} money={money} />
+        </section>
+
+        <section className="panel wide">
+          <PanelHeading eyebrow="Cajas" title="Resumen de las 6 cajas" />
+          <div className="cashbox-grid">
+            {cashboxSummaries.map((summary) => (
+              <article className="cashbox-card" key={summary.cashbox}>
+                <span>{summary.cashbox}</span>
+                <strong className={summary.balance < 0 ? "negative" : "positive"}>
+                  {money(summary.balance)}
+                </strong>
+                <dl>
+                  <div>
+                    <dt>Ingresos</dt>
+                    <dd>{money(summary.income)}</dd>
+                  </div>
+                  <div>
+                    <dt>Egresos</dt>
+                    <dd>{money(summary.expense)}</dd>
+                  </div>
+                  <div>
+                    <dt>Transferencias</dt>
+                    <dd>{money(summary.transfer)}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function InventoryModule({
+  inventoryReport,
+  itemForm,
+  money,
+  movementForm,
+  saving,
+  selectedItem,
+  selectedWarehouse,
+  setItemForm,
+  setMovementForm,
+  setSelectedWarehouse,
+  submitInventoryItem,
+  submitInventoryMovement,
+}: {
+  inventoryReport: {
+    byWarehouse: Array<{
+      items: InventoryItem[];
+      lowStock: number;
+      stockValue: number;
+      warehouse: string;
+    }>;
+    filteredItems: InventoryItem[];
+    lowStock: InventoryItem[];
+    value: number;
+  };
+  itemForm: ItemForm;
+  money: (value: number) => string;
+  movementForm: InventoryMovementForm;
+  saving: SavingTarget;
+  selectedItem?: InventoryItem;
+  selectedWarehouse: string;
+  setItemForm: (form: ItemForm) => void;
+  setMovementForm: (form: InventoryMovementForm) => void;
+  setSelectedWarehouse: (warehouse: string) => void;
+  submitInventoryItem: (event: FormEvent<HTMLFormElement>) => void;
+  submitInventoryMovement: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <section className="kpi-grid" aria-label="Indicadores de deposito">
+        <KpiCard label="Valor de stock filtrado" value={money(inventoryReport.value)} />
+        <KpiCard label="Articulos" value={String(inventoryReport.filteredItems.length)} />
+        <KpiCard
+          label="Alertas minimo"
+          tone="warning"
+          value={String(inventoryReport.lowStock.length)}
+        />
+        <KpiCard label="Depositos" tone="blue" value={String(warehouses.length)} />
+      </section>
+
+      <div className="content-grid inventory-layout">
+        <section className="panel">
+          <PanelHeading eyebrow="Deposito" title="Nuevo articulo" />
+          <form className="movement-form" onSubmit={submitInventoryItem}>
+            <label>
+              Deposito
+              <select
+                onChange={(event) =>
+                  setItemForm({ ...itemForm, warehouseName: event.target.value })
+                }
+                value={itemForm.warehouseName}
+              >
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse}>{warehouse}</option>
+                ))}
+              </select>
+            </label>
+            <div className="field-row">
+              <label>
+                Codigo
+                <input
+                  onChange={(event) => setItemForm({ ...itemForm, sku: event.target.value })}
+                  placeholder="SKU interno"
+                  value={itemForm.sku}
+                />
+              </label>
+              <label>
+                Categoria
+                <select
+                  onChange={(event) =>
+                    setItemForm({ ...itemForm, category: event.target.value })
+                  }
+                  value={itemForm.category}
+                >
+                  {inventoryCategories.map((category) => (
+                    <option key={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Articulo
+              <input
+                onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })}
+                placeholder="Nombre del insumo"
+                value={itemForm.name}
+              />
+            </label>
+            <div className="field-row">
+              <label>
+                Stock actual
+                <input
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setItemForm({ ...itemForm, currentStock: event.target.value })
+                  }
+                  placeholder="0"
+                  value={itemForm.currentStock}
+                />
+              </label>
+              <label>
+                Stock minimo
+                <input
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setItemForm({ ...itemForm, minStock: event.target.value })
+                  }
+                  placeholder="0"
+                  value={itemForm.minStock}
+                />
+              </label>
+            </div>
+            <div className="field-row">
+              <label>
+                Unidad
+                <select
+                  onChange={(event) => setItemForm({ ...itemForm, unit: event.target.value })}
+                  value={itemForm.unit}
+                >
+                  {inventoryUnits.map((unit) => (
+                    <option key={unit}>{unit}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Costo unitario
+                <input
+                  inputMode="numeric"
+                  onChange={(event) =>
+                    setItemForm({ ...itemForm, unitCost: event.target.value })
+                  }
+                  placeholder="0"
+                  value={itemForm.unitCost}
+                />
+              </label>
+            </div>
+            <label>
+              Proveedor
+              <input
+                onChange={(event) => setItemForm({ ...itemForm, supplier: event.target.value })}
+                placeholder="Proveedor principal"
+                value={itemForm.supplier}
+              />
+            </label>
+            <button className="submit-button" disabled={saving === "item"} type="submit">
+              {saving === "item" ? "Guardando..." : "Guardar articulo"}
+            </button>
+          </form>
+        </section>
+
+        <section className="panel">
+          <PanelHeading eyebrow="Stock" title="Movimiento de deposito" />
+          <form className="movement-form" onSubmit={submitInventoryMovement}>
+            <label>
+              Articulo
+              <select
+                onChange={(event) =>
+                  setMovementForm({ ...movementForm, itemId: event.target.value })
+                }
+                value={selectedItem?.id ?? ""}
+              >
+                {inventoryReport.filteredItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} - {item.warehouseName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="field-row">
+              <label>
+                Tipo
+                <select
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      movementType: event.target.value as InventoryMovementType,
+                    })
+                  }
+                  value={movementForm.movementType}
+                >
+                  <option value="entrada">entrada</option>
+                  <option value="salida">salida</option>
+                  <option value="traslado">traslado</option>
+                  <option value="ajuste">ajuste</option>
+                </select>
+              </label>
+              <label>
+                Fecha
+                <input
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, movementDate: event.target.value })
+                  }
+                  type="date"
+                  value={movementForm.movementDate}
+                />
+              </label>
+            </div>
+            {movementForm.movementType === "traslado" && (
+              <label>
+                Deposito destino
+                <select
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      targetWarehouseName: event.target.value,
+                    })
+                  }
+                  value={movementForm.targetWarehouseName}
+                >
+                  {warehouses
+                    .filter((warehouse) => warehouse !== selectedItem?.warehouseName)
+                    .map((warehouse) => (
+                      <option key={warehouse}>{warehouse}</option>
+                    ))}
+                </select>
+              </label>
+            )}
+            <div className="field-row">
+              <label>
+                Cantidad
+                <input
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, quantity: event.target.value })
+                  }
+                  placeholder="0"
+                  value={movementForm.quantity}
+                />
+              </label>
+              <label>
+                Costo unitario
+                <input
+                  inputMode="numeric"
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, unitCost: event.target.value })
+                  }
+                  placeholder={selectedItem ? String(selectedItem.unitCost) : "0"}
+                  value={movementForm.unitCost}
+                />
+              </label>
+            </div>
+            <div className="field-row">
+              <label>
+                Comprobante
+                <input
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, documentNumber: event.target.value })
+                  }
+                  placeholder="Remision, factura, vale"
+                  value={movementForm.documentNumber}
+                />
+              </label>
+              <label>
+                Responsable
+                <input
+                  onChange={(event) =>
+                    setMovementForm({ ...movementForm, responsible: event.target.value })
+                  }
+                  placeholder="Persona o sector"
+                  value={movementForm.responsible}
+                />
+              </label>
+            </div>
+            <label>
+              Notas
+              <input
+                onChange={(event) =>
+                  setMovementForm({ ...movementForm, notes: event.target.value })
+                }
+                placeholder="Detalle interno"
+                value={movementForm.notes}
+              />
+            </label>
+            <button
+              className="submit-button"
+              disabled={!selectedItem || saving === "inventory-movement"}
+              type="submit"
+            >
+              {saving === "inventory-movement" ? "Guardando..." : "Guardar movimiento"}
+            </button>
+          </form>
+        </section>
+
+        <section className="panel wide">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Depositos</p>
+              <h3>Stock por deposito fisico</h3>
+            </div>
+            <label className="inline-filter">
+              Filtro
+              <select
+                onChange={(event) => setSelectedWarehouse(event.target.value)}
+                value={selectedWarehouse}
+              >
+                <option>Todos</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse}>{warehouse}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="warehouse-grid">
+            {inventoryReport.byWarehouse.map((summary) => (
+              <article className="warehouse-card" key={summary.warehouse}>
+                <span>{summary.warehouse}</span>
+                <strong>{money(summary.stockValue)}</strong>
+                <small>
+                  {summary.items.length} articulos | {summary.lowStock} alertas
+                </small>
+              </article>
+            ))}
+          </div>
+
+          <InventoryTable items={inventoryReport.filteredItems} money={money} />
+        </section>
+      </div>
+    </>
+  );
+}
+
+function HumanResourcesModule({
+  employees,
   money,
 }: {
-  movements: Movement[];
+  employees: AppData["hrEmployees"];
   money: (value: number) => string;
+}) {
+  const activeEmployees = employees.filter((employee) => employee.status === "activo");
+  const payroll = activeEmployees.reduce((sum, employee) => sum + employee.monthlySalary, 0);
+
+  return (
+    <>
+      <section className="kpi-grid" aria-label="Indicadores de recursos humanos">
+        <KpiCard label="Personal activo" value={String(activeEmployees.length)} />
+        <KpiCard label="Nomina estimada" value={money(payroll)} />
+        <KpiCard label="Departamentos" tone="blue" value="3" />
+        <KpiCard label="Estado modulo" tone="warning" value="Base" />
+      </section>
+
+      <div className="content-grid">
+        <section className="panel wide">
+          <PanelHeading eyebrow="Recursos Humanos" title="Base de personal" />
+          <div className="roadmap-grid">
+            {["Legajos", "Asistencia", "Salarios", "Contratos", "Vacaciones", "Reportes"].map(
+              (item) => (
+                <article className="roadmap-card" key={item}>
+                  <span>{item}</span>
+                  <strong>Preparado</strong>
+                </article>
+              ),
+            )}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Funcionario</th>
+                  <th>Cargo</th>
+                  <th>Area</th>
+                  <th>Ingreso</th>
+                  <th>Salario</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((employee) => (
+                  <tr key={employee.id}>
+                    <td>{employee.fullName}</td>
+                    <td>{employee.role}</td>
+                    <td>{employee.department}</td>
+                    <td>{formatDate(employee.startDate)}</td>
+                    <td>{money(employee.monthlySalary)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function KpiCard({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone?: "blue" | "warning";
+  value: string;
+}) {
+  return (
+    <article className={`kpi-card ${tone ?? ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <div className="panel-heading">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h3>{title}</h3>
+      </div>
+    </div>
+  );
+}
+
+function MovementTable({
+  money,
+  movements,
+}: {
+  money: (value: number) => string;
+  movements: FinanceMovement[];
 }) {
   return (
     <div className="table-wrap">
@@ -690,21 +1207,23 @@ function MovementTable({
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Caja</th>
+            <th>Tipo</th>
             <th>Concepto</th>
             <th>Categoria</th>
-            <th>Lote</th>
             <th>Monto</th>
           </tr>
         </thead>
         <tbody>
           {movements.map((movement) => (
             <tr key={movement.id}>
-              <td>{formatDate(movement.date)}</td>
+              <td>{formatDate(movement.movementDate)}</td>
+              <td>{movement.cashboxName}</td>
+              <td>{movement.movementType}</td>
               <td>{movement.concept}</td>
               <td>{movement.category}</td>
-              <td>{movement.lot}</td>
-              <td className={movement.type === "gasto" ? "negative" : "positive"}>
-                {movement.type === "gasto" ? "-" : "+"}
+              <td className={movement.movementType === "egreso" ? "negative" : "positive"}>
+                {movement.movementType === "egreso" ? "-" : "+"}
                 {money(movement.amount)}
               </td>
             </tr>
@@ -715,4 +1234,66 @@ function MovementTable({
   );
 }
 
-export default AppPage;
+function InventoryTable({
+  items,
+  money,
+}: {
+  items: InventoryItem[];
+  money: (value: number) => string;
+}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Deposito</th>
+            <th>Codigo</th>
+            <th>Articulo</th>
+            <th>Categoria</th>
+            <th>Stock</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.warehouseName}</td>
+              <td>{item.sku}</td>
+              <td>{item.name}</td>
+              <td>{item.category}</td>
+              <td className={item.currentStock <= item.minStock ? "negative" : ""}>
+                {item.currentStock} {item.unit}
+              </td>
+              <td>{money(item.currentStock * item.unitCost)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function calculateLocalStock(
+  item: InventoryItem,
+  movementType: InventoryMovementType,
+  quantity: number,
+): InventoryItem {
+  const nextStock =
+    movementType === "entrada"
+      ? item.currentStock + quantity
+      : movementType === "ajuste"
+        ? quantity
+        : item.currentStock - quantity;
+
+  return {
+    ...item,
+    currentStock: nextStock,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function formatDate(value: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}

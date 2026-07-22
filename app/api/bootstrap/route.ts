@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import {
+  cashboxes,
+  demoData,
+  warehouses,
+  type AppData,
+} from "@/lib/company-data";
+import {
+  financeMovementFromRow,
+  inventoryItemFromRow,
+  inventoryMovementFromRow,
+} from "@/lib/db-mappers";
+import { isSupabaseConfigured, supabaseSelect } from "@/lib/supabase-rest";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(demoData);
+  }
+
+  try {
+    const [financeRows, itemRows, movementRows, employeeRows] = await Promise.all([
+      supabaseSelect<unknown[]>(
+        "finance_movements?select=*&order=movement_date.desc,created_at.desc",
+      ),
+      supabaseSelect<unknown[]>(
+        "inventory_items?select=*&order=warehouse_name.asc,name.asc",
+      ),
+      supabaseSelect<unknown[]>(
+        "inventory_movements?select=*&order=movement_date.desc,created_at.desc",
+      ),
+      supabaseSelect<unknown[]>(
+        "hr_employees?select=*&order=full_name.asc",
+      ),
+    ]);
+
+    const data: AppData = {
+      storageMode: "supabase",
+      storageMessage: "Conectado a Supabase.",
+      cashboxes,
+      warehouses,
+      financeMovements: financeRows.map((row) => financeMovementFromRow(row as never)),
+      inventoryItems: itemRows.map((row) => inventoryItemFromRow(row as never)),
+      inventoryMovements: movementRows.map((row) => inventoryMovementFromRow(row as never)),
+      hrEmployees: employeeRows.map((row) => ({
+        id: String((row as { id: string }).id),
+        fullName: String((row as { full_name: string }).full_name),
+        documentNumber: String((row as { document_number?: string }).document_number ?? ""),
+        role: String((row as { role?: string }).role ?? ""),
+        department: String((row as { department?: string }).department ?? ""),
+        status: ((row as { status?: "activo" | "licencia" | "inactivo" }).status ?? "activo"),
+        startDate: String((row as { start_date?: string }).start_date ?? ""),
+        monthlySalary: Number((row as { monthly_salary?: number | string }).monthly_salary ?? 0),
+        notes: String((row as { notes?: string }).notes ?? ""),
+      })),
+    };
+
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json({
+      ...demoData,
+      storageError:
+        error instanceof Error
+          ? error.message
+          : "No se pudo leer Supabase. Se muestran datos demo.",
+    });
+  }
+}

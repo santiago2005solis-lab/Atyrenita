@@ -1,98 +1,74 @@
-# vinext-starter
+# GanadoFinanzas
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Sistema web general para administrar una empresa ganadera/agropecuaria.
 
-## Prerequisites
+## Modulos
 
-- Node.js `>=22.13.0`
+- Finanzas: movimientos, reportes y exportacion CSV para 6 cajas.
+- Deposito: articulos, stock minimo y movimientos para 4 depositos fisicos.
+- Recursos Humanos: base inicial de personal, preparada para ampliar.
 
-## Quick Start
+## Cajas iniciales
+
+- Caja Ganadero Confinamiento
+- Caja Ganadero a Pasto
+- Caja Agricola
+- Caja Inversiones
+- Caja Maquinas
+- Caja CDE
+
+## Depositos iniciales
+
+- Deposito Capitan
+- Deposito Villagra
+- Deposito Confinamiento 15 HAS
+- Confinamiento 500 HAS
+
+## Desarrollo local
 
 ```bash
-npm install
-npm run dev
-npm run build
+pnpm install
+pnpm dev
 ```
 
-This starter does not use `wrangler.jsonc`.
+La app funciona en modo demo cuando no hay variables de Supabase.
 
-## Included Shape
+## Supabase
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+1. Crear un proyecto gratis en Supabase.
+2. Abrir SQL Editor.
+3. Ejecutar `supabase/schema.sql`.
+4. Copiar `.env.example` a `.env.local`.
+5. Completar:
 
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+SUPABASE_URL=https://TU-PROYECTO.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+La clave `SUPABASE_SERVICE_ROLE_KEY` solo debe estar en el servidor, por ejemplo en Vercel Environment Variables. No debe enviarse al navegador.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Vercel
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+1. Subir el proyecto a GitHub.
+2. Importar el repositorio desde Vercel.
+3. Framework: Next.js.
+4. Build command: `pnpm build`.
+5. Agregar las variables de Supabase en Production, Preview y Development.
+6. Deploy.
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+## Base de datos
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+El archivo `supabase/schema.sql` crea:
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+- `finance_cashboxes`
+- `finance_movements`
+- `inventory_warehouses`
+- `inventory_items`
+- `inventory_movements`
+- `hr_employees`
+- Vistas de reporte para finanzas y deposito
 
-## Useful Commands
+## Siguiente paso
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+El modulo de Recursos Humanos puede avanzar con legajos, asistencia, adelantos, salarios, contratos, vacaciones y reportes por funcionario.

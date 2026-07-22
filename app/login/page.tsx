@@ -42,11 +42,11 @@ export default function LoginPage() {
       <section className="login-panel" aria-label="Inicio de sesion">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true">
-            GF
+            SG
           </div>
           <div>
             <p className="eyebrow">Sistema empresarial</p>
-            <h1>GanadoFinanzas</h1>
+            <h1>Atyrenita SG</h1>
           </div>
         </div>
 

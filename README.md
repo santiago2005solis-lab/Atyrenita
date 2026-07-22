@@ -1,4 +1,4 @@
-# GanadoFinanzas
+# Atyrenita SG
 
 Sistema web general para administrar una empresa ganadera/agropecuaria.
 

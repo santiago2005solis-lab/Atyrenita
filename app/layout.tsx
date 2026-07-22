@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 
-const title = "GanadoFinanzas";
+const title = "Atyrenita SG";
 const description = "Sistema web para controlar caja, costos y stock ganadero.";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: imageUrl,
           width: 1200,
           height: 630,
-          alt: "GanadoFinanzas",
+          alt: "Atyrenita SG",
         },
       ],
     },

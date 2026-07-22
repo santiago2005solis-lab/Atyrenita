@@ -190,6 +190,11 @@ export default function AppPage() {
       : activeModule;
   const canEditFinance = canEditModule(data.currentUser, "financiero");
   const canEditDeposito = canEditModule(data.currentUser, "deposito");
+  const activeModuleTitle =
+    effectiveActiveModule === "inicio"
+      ? "Atyrenita SG"
+      : (protectedModuleDefinitions.find((module) => module.id === effectiveActiveModule)
+          ?.label ?? "Atyrenita SG");
 
   const moneyFormatter = useMemo(
     () =>
@@ -543,11 +548,11 @@ export default function AppPage() {
       <aside className="sidebar" aria-label="Navegacion principal">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true">
-            GF
+            SG
           </div>
           <div>
             <p className="eyebrow">Sistema empresarial</p>
-            <h1>GanadoFinanzas</h1>
+            <h1>Atyrenita SG</h1>
           </div>
         </div>
 
@@ -566,47 +571,40 @@ export default function AppPage() {
           ))}
         </nav>
 
-        <div className="sidebar-summary">
-          <p>Estado de datos</p>
-          <strong>{data.storageMode === "supabase" ? "Supabase" : "Demo"}</strong>
-          <span>{statusMessage}</span>
-        </div>
+        {data.currentUser && (
+          <div className="sidebar-summary">
+            <p>Usuario</p>
+            <strong>{data.currentUser.fullName}</strong>
+            <span>{data.currentUser.role}</span>
+            <button className="sidebar-logout" onClick={logout} type="button">
+              Salir
+            </button>
+          </div>
+        )}
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Sistema web con Supabase y Vercel</p>
-            <h2>Administracion general por modulos</h2>
+            <p className="eyebrow">Sistema web empresarial</p>
+            <h2>{activeModuleTitle}</h2>
           </div>
-          <div className="topbar-actions">
-            {data.currentUser && (
-              <div className="user-chip">
-                <span>{data.currentUser.fullName}</span>
-                <strong>{data.currentUser.role}</strong>
-              </div>
-            )}
-            {canReadModule(data.currentUser, "financiero") && (
-              <button type="button" onClick={() => setActiveModule("financiero")}>
-                Registrar caja
-              </button>
-            )}
-            {canReadModule(data.currentUser, "deposito") && (
-              <button type="button" onClick={() => setActiveModule("deposito")}>
-                Stock deposito
-              </button>
-            )}
-            <button type="button" onClick={logout}>
-              Salir
-            </button>
+          <div className="topbar-status">
+            <div
+              className={`connection-pill ${
+                data.storageMode === "supabase" && !data.storageError ? "online" : "offline"
+              }`}
+            >
+              <span aria-hidden="true" />
+              {data.storageMode === "supabase" && !data.storageError ? "Online" : "Offline"}
+            </div>
           </div>
         </header>
 
         {data.storageError && <div className="status-banner danger">{data.storageError}</div>}
-        <div className="status-banner">
-          <span>{data.storageMode === "supabase" ? "Base activa" : "Modo demo"}</span>
+        <p className="sr-only" aria-live="polite">
           {statusMessage}
-        </div>
+        </p>
 
         {visibleModules.length === 1 && data.currentUser && (
           <section className="panel">
@@ -907,11 +905,6 @@ function DashboardModule({
               <span>Cajas negativas</span>
               <strong>{negativeCashboxes.length}</strong>
               <small>{negativeCashboxes[0] ?? "Sin saldos negativos"}</small>
-            </article>
-            <article>
-              <span>Estado de datos</span>
-              <strong>{data.storageMode === "supabase" ? "Supabase" : "Demo"}</strong>
-              <small>{data.storageMessage ?? "Sistema cargado"}</small>
             </article>
           </div>
         </section>

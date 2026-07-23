@@ -365,6 +365,11 @@ button:disabled {
   color: var(--red);
 }
 
+.status-banner.warning {
+  background: var(--amber-soft);
+  color: #805512;
+}
+
 .status-banner.locked {
   align-items: flex-start;
   background: var(--amber-soft);
@@ -1841,6 +1846,64 @@ th:last-child {
   font-weight: 800;
 }
 
+.hr-subsection-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 22px 0 10px;
+}
+
+.hr-subsection-heading h3 {
+  margin: 3px 0 0;
+}
+
+.hr-subsection-heading > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.hr-import-panel {
+  max-width: 980px;
+}
+
+.hr-import-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 14px;
+}
+
+.hr-file-control,
+.hr-import-summary {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.hr-file-control input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.hr-import-summary span,
+.hr-import-summary small {
+  color: var(--muted);
+}
+
+.hr-import-summary strong {
+  font-size: 1.15rem;
+}
+
 .hr-sector-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2129,6 +2192,10 @@ th:last-child {
   .hr-month-filter {
     max-width: 100%;
     justify-self: stretch;
+  }
+
+  .hr-import-layout {
+    grid-template-columns: 1fr;
   }
 
   .report-card > strong,

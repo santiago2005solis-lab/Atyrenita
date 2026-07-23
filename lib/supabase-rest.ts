@@ -27,6 +27,17 @@ export async function supabaseInsert<T>(
   });
 }
 
+export async function supabaseUpsert<T>(
+  tableWithQuery: string,
+  body: unknown,
+): Promise<T> {
+  return supabaseRequest<T>(tableWithQuery, {
+    body,
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+  });
+}
+
 export async function supabasePatch<T>(
   tableWithQuery: string,
   body: unknown,

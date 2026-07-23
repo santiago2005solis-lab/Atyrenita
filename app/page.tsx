@@ -833,6 +833,7 @@ export default function AppPage() {
 
         {effectiveActiveModule === "rrhh" && canReadModule(data.currentUser, "rrhh") && (
           <HumanResourcesModule
+            canAdmin={hasPermission(data.currentUser, "rrhh", "administrador")}
             canEdit={canEditModule(data.currentUser, "rrhh")}
             employees={data.hrEmployees}
             money={money}

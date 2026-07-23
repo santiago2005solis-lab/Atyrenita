@@ -1,7 +1,18 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import {
+  FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { HrEmployee } from "@/lib/company-data";
+import {
+  emptyHrData,
+  type HrData,
+  type HrSector,
+} from "@/lib/hr-data";
 
 type HrBlockId =
   | "resumen"
@@ -13,7 +24,8 @@ type HrBlockId =
   | "salarios"
   | "documentos"
   | "consultas"
-  | "reportes";
+  | "reportes"
+  | "respaldo";
 
 type EmployeeForm = {
   dailyWage: string;
@@ -40,6 +52,7 @@ const hrBlocks: Array<{ id: HrBlockId; label: string }> = [
   { id: "documentos", label: "Documentos" },
   { id: "consultas", label: "Consultas" },
   { id: "reportes", label: "Reportes" },
+  { id: "respaldo", label: "Importar respaldo" },
 ];
 
 const baseSectors = [
@@ -71,16 +84,22 @@ const emptyEmployeeForm: EmployeeForm = {
 };
 
 export function HumanResourcesModule({
+  canAdmin,
   canEdit,
   employees: initialEmployees,
   money,
 }: {
+  canAdmin: boolean;
   canEdit: boolean;
   employees: HrEmployee[];
   money: (value: number) => string;
 }) {
   const [activeBlock, setActiveBlock] = useState<HrBlockId>("resumen");
   const [employees, setEmployees] = useState(initialEmployees);
+  const [hrData, setHrData] = useState<HrData>({
+    ...emptyHrData,
+    employees: initialEmployees,
+  });
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toISOString().slice(0, 7),
   );
@@ -91,6 +110,33 @@ export function HumanResourcesModule({
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [dataError, setDataError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    void requestHrData()
+      .then((nextData) => {
+        if (!active) return;
+        setHrData(nextData);
+        setEmployees(nextData.employees);
+        setDataError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setDataError(
+          error instanceof Error
+            ? error.message
+            : "No se pudo cargar Recursos Humanos.",
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const activeEmployees = useMemo(
     () => employees.filter((employee) => employee.status === "activo"),
@@ -105,24 +151,29 @@ export function HumanResourcesModule({
       ),
     [activeEmployees],
   );
-  const dailyWages = useMemo(
+  const sectorRecords = useMemo(
     () =>
-      activeEmployees.reduce(
-        (sum, employee) =>
-          sum + (employee.salaryType === "jornal" ? employee.dailyWage : 0),
-        0,
-      ),
-    [activeEmployees],
+      hrData.sectors.length
+        ? hrData.sectors
+        : baseSectors.map<HrSector>((name, index) => ({
+            boss: "",
+            description: "",
+            establishment: "",
+            id: `base-sector-${index}`,
+            name,
+            status: "Activo",
+          })),
+    [hrData.sectors],
   );
   const sectors = useMemo(
     () =>
       Array.from(
         new Set([
-          ...baseSectors,
+          ...sectorRecords.map((sector) => sector.name),
           ...employees.map((employee) => employee.department).filter(Boolean),
         ]),
       ).sort((first, second) => first.localeCompare(second)),
-    [employees],
+    [employees, sectorRecords],
   );
   const filteredEmployees = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -147,6 +198,27 @@ export function HumanResourcesModule({
       })
       .sort((first, second) => first.fullName.localeCompare(second.fullName));
   }, [employees, query, sectorFilter, statusFilter]);
+  const salaryRows = useMemo(
+    () =>
+      activeEmployees.map((employee) => ({
+        calculation: calculateEmployeePayroll(employee, selectedMonth, hrData),
+        employee,
+      })),
+    [activeEmployees, hrData, selectedMonth],
+  );
+  const salaryTotals = useMemo(
+    () =>
+      salaryRows.reduce(
+        (totals, row) => ({
+          advances: totals.advances + row.calculation.advances,
+          base: totals.base + row.calculation.base,
+          balance: totals.balance + row.calculation.balance,
+          extras: totals.extras + row.calculation.extras,
+        }),
+        { advances: 0, balance: 0, base: 0, extras: 0 },
+      ),
+    [salaryRows],
+  );
 
   function openEmployeeForm(employee?: HrEmployee) {
     setEmployeeForm(
@@ -200,6 +272,14 @@ export function HumanResourcesModule({
             )
           : [...current, payload.employee!],
       );
+      setHrData((current) => ({
+        ...current,
+        employees: employeeForm.id
+          ? current.employees.map((employee) =>
+              employee.id === payload.employee?.id ? payload.employee : employee,
+            )
+          : [...current.employees, payload.employee!],
+      }));
       setFormOpen(false);
     } catch (error) {
       setFormError(
@@ -210,8 +290,48 @@ export function HumanResourcesModule({
     }
   }
 
+  async function importBackup(file: File | undefined) {
+    if (!file) return;
+    setImporting(true);
+    setImportMessage("");
+
+    try {
+      const backup = JSON.parse(await file.text()) as unknown;
+      const response = await fetch("/api/hr/import", {
+        body: JSON.stringify(backup),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        imported?: Record<string, number>;
+      };
+      if (!response.ok || !payload.imported) {
+        throw new Error(payload.error ?? "No se pudo importar el respaldo.");
+      }
+
+      const nextData = await requestHrData();
+      setHrData(nextData);
+      setEmployees(nextData.employees);
+      setDataError("");
+      setImportMessage(
+        `${payload.imported.employees ?? 0} funcionarios y ${
+          Object.values(payload.imported).reduce((sum, count) => sum + count, 0) -
+          (payload.imported.employees ?? 0)
+        } registros relacionados importados.`,
+      );
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error ? error.message : "No se pudo importar el respaldo.",
+      );
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="hr-module">
+      {dataError && <div className="status-banner warning">{dataError}</div>}
       <section className="hr-block-navigation" aria-label="Areas de recursos humanos">
         <div className="hr-block-status">
           <span>Area activa</span>
@@ -239,10 +359,10 @@ export function HumanResourcesModule({
           activeEmployees={activeEmployees}
           employees={employees}
           money={money}
-          payroll={payroll}
           sectors={sectors}
           selectedMonth={selectedMonth}
           setSelectedMonth={setSelectedMonth}
+          data={hrData}
         />
       )}
 
@@ -321,26 +441,27 @@ export function HumanResourcesModule({
         <section className="panel">
           <HrSectionHeading eyebrow="Organizacion" title="Sectores y jefaturas" />
           <div className="hr-sector-grid">
-            {sectors.map((sector) => {
+            {sectorRecords.map((sector) => {
               const assigned = activeEmployees.filter(
-                (employee) => employee.department === sector,
+                (employee) => employee.department === sector.name,
               );
               return (
-                <article className="hr-sector-card" key={sector}>
+                <article className="hr-sector-card" key={sector.id}>
                   <div>
                     <span>Sector</span>
-                    <strong>{sector}</strong>
+                    <strong>{sector.name}</strong>
                   </div>
                   <dl>
                     <div>
                       <dt>Jefe</dt>
-                      <dd>No definido</dd>
+                      <dd>{sector.boss || "No definido"}</dd>
                     </div>
                     <div>
                       <dt>Activos</dt>
                       <dd>{assigned.length}</dd>
                     </div>
                   </dl>
+                  {sector.establishment && <small>{sector.establishment}</small>}
                 </article>
               );
             })}
@@ -365,10 +486,18 @@ export function HumanResourcesModule({
             title="Salarios y anticipos"
           />
           <div className="kpi-grid hr-kpi-grid">
-            <HrKpi label="Salarios mensuales" value={money(payroll)} />
-            <HrKpi label="Jornales diarios" value={money(dailyWages)} />
-            <HrKpi label="Anticipos" tone="warning" value={money(0)} />
-            <HrKpi label="Saldo restante" tone="blue" value={money(payroll)} />
+            <HrKpi label="Base salarial" value={money(salaryTotals.base)} />
+            <HrKpi label="Horas extras" value={money(salaryTotals.extras)} />
+            <HrKpi
+              label="Anticipos"
+              tone="warning"
+              value={money(salaryTotals.advances)}
+            />
+            <HrKpi
+              label="Saldo restante"
+              tone="blue"
+              value={money(salaryTotals.balance)}
+            />
           </div>
           <div className="table-wrap hr-table">
             <table>
@@ -385,25 +514,48 @@ export function HumanResourcesModule({
                 </tr>
               </thead>
               <tbody>
-                {activeEmployees.map((employee) => (
+                {salaryRows.map(({ calculation, employee }) => (
                   <tr key={employee.id}>
                     <td><strong>{employee.fullName}</strong></td>
                     <td>{employee.department || "Sin sector"}</td>
                     <td>{salaryTypeLabel(employee.salaryType)}</td>
-                    <td>{salaryDisplay(employee, money)}</td>
-                    <td>{money(0)}</td>
-                    <td>{money(0)}</td>
-                    <td>{money(0)}</td>
-                    <td className="positive-amount">
-                      {employee.salaryType === "mensual"
-                        ? money(employee.monthlySalary)
-                        : "Pendiente de asistencia"}
-                    </td>
+                    <td>{money(calculation.base)}</td>
+                    <td>{money(calculation.extras)}</td>
+                    <td>{money(calculation.advances)}</td>
+                    <td>{money(calculation.discounts)}</td>
+                    <td className="positive-amount">{money(calculation.balance)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <div className="hr-subsection-heading">
+            <div>
+              <p className="eyebrow">Movimientos</p>
+              <h3>Anticipos registrados</h3>
+            </div>
+            <span>{selectedMonth}</span>
+          </div>
+          <HrRecordsTable
+            columns={[
+              "Fecha",
+              "Funcionario",
+              "Monto",
+              "Motivo",
+              "Medio",
+              "Autorizado por",
+            ]}
+            rows={hrData.advances
+              .filter((advance) => advance.month === selectedMonth)
+              .map((advance) => [
+                formatDate(advance.date),
+                employeeName(advance.employeeId, employees),
+                money(advance.amount),
+                advance.reason || "-",
+                advance.method || "-",
+                advance.approvedBy || "-",
+              ])}
+          />
         </section>
       )}
 
@@ -443,6 +595,14 @@ export function HumanResourcesModule({
             "Motivo",
           ]}
           eyebrow="Historial"
+          rows={hrData.transfers.map((transfer) => [
+            formatDate(transfer.date),
+            employeeName(transfer.employeeId, employees),
+            sectorName(transfer.fromSectorId, hrData.sectors),
+            sectorName(transfer.toSectorId, hrData.sectors),
+            transfer.boss || "-",
+            transfer.reason || "-",
+          ])}
           title="Cambios de sector"
         />
       )}
@@ -461,6 +621,22 @@ export function HumanResourcesModule({
             "Estado",
           ]}
           eyebrow="Control diario"
+          rows={hrData.attendance
+            .filter((attendance) =>
+              attendance.attendanceDate.startsWith(selectedMonth),
+            )
+            .map((attendance) => [
+              formatDate(attendance.attendanceDate),
+              employeeName(attendance.employeeId, employees),
+              employeeSector(attendance.employeeId, employees),
+              attendance.entry || "-",
+              attendance.lunchOut || "-",
+              attendance.lunchIn || "-",
+              attendance.exit || "-",
+              workedHours(attendance),
+              attendance.extraHours.toFixed(2),
+              attendance.status,
+            ])}
           title="Asistencia"
         />
       )}
@@ -477,6 +653,22 @@ export function HumanResourcesModule({
             "Descuento",
           ]}
           eyebrow="Gestion"
+          rows={hrData.events
+            .filter((event) => event.dateFrom.startsWith(selectedMonth))
+            .map((event) => [
+              `${formatDate(event.dateFrom)}${
+                event.dateTo && event.dateTo !== event.dateFrom
+                  ? ` - ${formatDate(event.dateTo)}`
+                  : ""
+              }`,
+              employeeName(event.employeeId, employees),
+              event.eventType,
+              eventDays(event.dateFrom, event.dateTo),
+              event.hours.toFixed(2),
+              event.reason || "-",
+              event.status,
+              money(event.discount),
+            ])}
           title="Permisos y novedades"
         />
       )}
@@ -491,6 +683,14 @@ export function HumanResourcesModule({
             "Referencia",
           ]}
           eyebrow="Legajos"
+          rows={hrData.documents.map((document) => [
+            employeeName(document.employeeId, employees),
+            document.type,
+            documentStatus(document),
+            formatDate(document.deliveryDate),
+            formatDate(document.expiryDate),
+            document.reference || "-",
+          ])}
           title="Documentos de ingreso"
         />
       )}
@@ -505,8 +705,55 @@ export function HumanResourcesModule({
             "Respuesta",
           ]}
           eyebrow="Atencion interna"
+          rows={hrData.consultations
+            .filter((consultation) => consultation.date.startsWith(selectedMonth))
+            .map((consultation) => [
+              formatDate(consultation.date),
+              employeeName(consultation.employeeId, employees),
+              consultation.type,
+              consultation.subject,
+              consultation.status,
+              consultation.response || "-",
+            ])}
           title="Consultas del personal"
         />
+      )}
+
+      {activeBlock === "respaldo" && (
+        <section className="panel hr-import-panel">
+          <HrSectionHeading eyebrow="Datos" title="Importar respaldo de RR.HH." />
+          {importMessage && (
+            <div
+              className={`status-banner ${
+                importMessage.includes("importados") ? "success" : "danger"
+              }`}
+            >
+              {importMessage}
+            </div>
+          )}
+          <div className="hr-import-layout">
+            <label className="hr-file-control">
+              Archivo JSON
+              <input
+                accept="application/json,.json"
+                disabled={!canAdmin || importing}
+                onChange={(event) => {
+                  void importBackup(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+                type="file"
+              />
+            </label>
+            <div className="hr-import-summary">
+              <span>Registros actuales</span>
+              <strong>{employees.length} funcionarios</strong>
+              <small>
+                {hrData.sectors.length} sectores | {hrData.attendance.length} asistencias |
+                {" "}{hrData.events.length} novedades | {hrData.advances.length} anticipos
+              </small>
+            </div>
+          </div>
+        </section>
       )}
 
       {formOpen && (
@@ -704,21 +951,39 @@ export function HumanResourcesModule({
 
 function HrSummary({
   activeEmployees,
+  data,
   employees,
   money,
-  payroll,
   sectors,
   selectedMonth,
   setSelectedMonth,
 }: {
   activeEmployees: HrEmployee[];
+  data: HrData;
   employees: HrEmployee[];
   money: (value: number) => string;
-  payroll: number;
   sectors: string[];
   selectedMonth: string;
   setSelectedMonth: (value: string) => void;
 }) {
+  const today = localDateValue();
+  const todayAttendance = data.attendance.filter(
+    (attendance) => attendance.attendanceDate === today,
+  );
+  const presentToday = todayAttendance.filter(
+    (attendance) => normalizeText(attendance.status).includes("presente"),
+  ).length;
+  const absentToday = todayAttendance.filter(
+    (attendance) => normalizeText(attendance.status).includes("ausente"),
+  ).length;
+  const monthlyCalculations = activeEmployees.map((employee) => ({
+    calculation: calculateEmployeePayroll(employee, selectedMonth, data),
+    employee,
+  }));
+  const monthlyPayroll = monthlyCalculations.reduce(
+    (sum, row) => sum + row.calculation.balance,
+    0,
+  );
   const latestEmployees = [...employees]
     .sort((first, second) => second.startDate.localeCompare(first.startDate))
     .slice(0, 5);
@@ -741,9 +1006,9 @@ function HrSummary({
       </div>
       <section className="kpi-grid hr-kpi-grid" aria-label="Indicadores de personal">
         <HrKpi label="Funcionarios activos" value={String(activeEmployees.length)} />
-        <HrKpi label="Presentes hoy" value="0" />
-        <HrKpi label="Ausentes hoy" tone="warning" value="0" />
-        <HrKpi label="Nomina del mes" tone="blue" value={money(payroll)} />
+        <HrKpi label="Presentes hoy" value={String(presentToday)} />
+        <HrKpi label="Ausentes hoy" tone="warning" value={String(absentToday)} />
+        <HrKpi label="Nomina del mes" tone="blue" value={money(monthlyPayroll)} />
       </section>
       <div className="hr-summary-grid">
         <section className="panel">
@@ -797,19 +1062,17 @@ function HrSummary({
               </tr>
             </thead>
             <tbody>
-              {activeEmployees.map((employee) => (
+              {monthlyCalculations.map(({ calculation, employee }) => (
                 <tr key={employee.id}>
                   <td><strong>{employee.fullName}</strong></td>
                   <td>{employee.department || "Sin sector"}</td>
                   <td>{salaryTypeLabel(employee.salaryType)}</td>
-                  <td>{salaryDisplay(employee, money)}</td>
-                  <td>{money(0)}</td>
-                  <td>{money(0)}</td>
-                  <td>{money(0)}</td>
+                  <td>{money(calculation.base)}</td>
+                  <td>{money(calculation.extras)}</td>
+                  <td>{money(calculation.advances)}</td>
+                  <td>{money(calculation.discounts)}</td>
                   <td className="positive-amount">
-                    {employee.salaryType === "mensual"
-                      ? money(employee.monthlySalary)
-                      : "Pendiente de asistencia"}
+                    {money(calculation.balance)}
                   </td>
                 </tr>
               ))}
@@ -893,34 +1156,58 @@ function EmployeeTable({
 function HrOperationalTable({
   columns,
   eyebrow,
+  rows,
   title,
 }: {
   columns: string[];
   eyebrow: string;
+  rows: ReactNode[][];
   title: string;
 }) {
   return (
     <section className="panel">
       <HrSectionHeading eyebrow={eyebrow} title={title} />
-      <div className="table-wrap hr-table">
-        <table>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column}>{column}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
+      <HrRecordsTable columns={columns} rows={rows} />
+    </section>
+  );
+}
+
+function HrRecordsTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: ReactNode[][];
+}) {
+  return (
+    <div className="table-wrap hr-table">
+      <table>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? (
+            rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex}>{cell}</td>
+                ))}
+              </tr>
+            ))
+          ) : (
             <tr>
               <td className="hr-empty-cell" colSpan={columns.length}>
                 Sin registros.
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -929,7 +1216,7 @@ function HrSectionHeading({
   eyebrow,
   title,
 }: {
-  action?: React.ReactNode;
+  action?: ReactNode;
   eyebrow: string;
   title: string;
 }) {
@@ -983,4 +1270,158 @@ function salaryDisplay(
   return employee.salaryType === "jornal"
     ? `${money(employee.dailyWage)} / dia`
     : `${money(employee.monthlySalary)} / mes`;
+}
+
+async function requestHrData(): Promise<HrData> {
+  const response = await fetch("/api/hr/bootstrap", { cache: "no-store" });
+  const payload = (await response.json()) as HrData & {
+    error?: string;
+    migrationRequired?: boolean;
+  };
+
+  if (!response.ok) {
+    throw new Error(
+      payload.migrationRequired
+        ? "Falta preparar las tablas integrales de RR.HH. en Supabase."
+        : payload.error ?? "No se pudo cargar Recursos Humanos.",
+    );
+  }
+
+  return payload;
+}
+
+function employeeName(employeeId: string, employees: HrEmployee[]) {
+  return (
+    employees.find((employee) => employee.id === employeeId)?.fullName ??
+    "Funcionario no encontrado"
+  );
+}
+
+function employeeSector(employeeId: string, employees: HrEmployee[]) {
+  return (
+    employees.find((employee) => employee.id === employeeId)?.department ||
+    "Sin sector"
+  );
+}
+
+function sectorName(sectorId: string, sectors: HrSector[]) {
+  if (!sectorId) return "-";
+  return sectors.find((sector) => sector.id === sectorId)?.name ?? sectorId;
+}
+
+function workedHours(attendance: HrData["attendance"][number]) {
+  const firstBlock = elapsedHours(attendance.entry, attendance.lunchOut);
+  const secondBlock = elapsedHours(attendance.lunchIn, attendance.exit);
+  const total =
+    firstBlock || secondBlock
+      ? firstBlock + secondBlock
+      : elapsedHours(attendance.entry, attendance.exit);
+  return total.toFixed(2);
+}
+
+function elapsedHours(from: string, to: string) {
+  if (!from || !to) return 0;
+  const [fromHour, fromMinute] = from.split(":").map(Number);
+  const [toHour, toMinute] = to.split(":").map(Number);
+  if (
+    [fromHour, fromMinute, toHour, toMinute].some((value) =>
+      Number.isNaN(value),
+    )
+  ) {
+    return 0;
+  }
+  return Math.max(0, toHour * 60 + toMinute - (fromHour * 60 + fromMinute)) / 60;
+}
+
+function eventDays(from: string, to: string) {
+  if (!from) return "0";
+  const start = new Date(`${from}T12:00:00`);
+  const end = new Date(`${to || from}T12:00:00`);
+  const difference = Math.floor((end.getTime() - start.getTime()) / 86_400_000);
+  return String(Math.max(1, difference + 1));
+}
+
+function documentStatus(document: HrData["documents"][number]) {
+  if (
+    document.expiryDate &&
+    document.expiryDate < localDateValue() &&
+    !normalizeText(document.status).includes("venc")
+  ) {
+    return "Vencido";
+  }
+  return document.status || "Pendiente";
+}
+
+function calculateEmployeePayroll(
+  employee: HrEmployee,
+  month: string,
+  data: HrData,
+) {
+  const payroll = data.payroll.find(
+    (record) => record.employeeId === employee.id && record.month === month,
+  );
+  const attendance = data.attendance.filter(
+    (record) =>
+      record.employeeId === employee.id &&
+      record.attendanceDate.startsWith(month),
+  );
+  const presentDays = attendance.filter((record) =>
+    normalizeText(record.status).includes("presente"),
+  ).length;
+  const base =
+    employee.salaryType === "jornal"
+      ? presentDays * employee.dailyWage
+      : payroll?.salary || employee.monthlySalary;
+  const attendanceExtraHours = attendance.reduce(
+    (sum, record) => sum + record.extraHours,
+    0,
+  );
+  const approvedExtraHours = data.events
+    .filter(
+      (event) =>
+        event.employeeId === employee.id &&
+        event.dateFrom.startsWith(month) &&
+        normalizeText(event.eventType).includes("extra") &&
+        !normalizeText(event.status).includes("rechaz"),
+    )
+    .reduce((sum, event) => sum + event.hours, 0);
+  const extras =
+    (attendanceExtraHours + approvedExtraHours) * (payroll?.extraRate ?? 0);
+  const advances = data.advances
+    .filter(
+      (advance) =>
+        advance.employeeId === employee.id && advance.month === month,
+    )
+    .reduce((sum, advance) => sum + advance.amount, 0);
+  const eventDiscounts = data.events
+    .filter(
+      (event) =>
+        event.employeeId === employee.id &&
+        event.dateFrom.startsWith(month) &&
+        !normalizeText(event.status).includes("rechaz"),
+    )
+    .reduce((sum, event) => sum + event.discount, 0);
+  const discounts = eventDiscounts + (payroll?.otherDiscounts ?? 0);
+  const otherIncome = payroll?.otherIncome ?? 0;
+
+  return {
+    advances,
+    balance: base + extras + otherIncome - advances - discounts,
+    base,
+    discounts,
+    extras,
+  };
+}
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function localDateValue() {
+  const date = new Date();
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }

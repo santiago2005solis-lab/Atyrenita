@@ -25,6 +25,7 @@ import {
   hasPermission,
   type AppModule,
 } from "@/lib/permissions";
+import { HumanResourcesModule } from "@/app/components/human-resources-module";
 
 type ProtectedModuleId = Extract<
   AppModule,
@@ -828,7 +829,11 @@ export default function AppPage() {
         )}
 
         {effectiveActiveModule === "rrhh" && canReadModule(data.currentUser, "rrhh") && (
-          <HumanResourcesModule employees={data.hrEmployees} money={money} />
+          <HumanResourcesModule
+            canEdit={canEditModule(data.currentUser, "rrhh")}
+            employees={data.hrEmployees}
+            money={money}
+          />
         )}
 
         {effectiveActiveModule === "ganadero" &&
@@ -2439,68 +2444,6 @@ function InventoryModule({
           </div>
 
           <InventoryTable items={inventoryReport.filteredItems} money={money} />
-        </section>
-      </div>
-    </>
-  );
-}
-
-function HumanResourcesModule({
-  employees,
-  money,
-}: {
-  employees: AppData["hrEmployees"];
-  money: (value: number) => string;
-}) {
-  const activeEmployees = employees.filter((employee) => employee.status === "activo");
-  const payroll = activeEmployees.reduce((sum, employee) => sum + employee.monthlySalary, 0);
-
-  return (
-    <>
-      <section className="kpi-grid" aria-label="Indicadores de recursos humanos">
-        <KpiCard label="Personal activo" value={String(activeEmployees.length)} />
-        <KpiCard label="Nomina estimada" value={money(payroll)} />
-        <KpiCard label="Departamentos" tone="blue" value="3" />
-        <KpiCard label="Estado modulo" tone="warning" value="Base" />
-      </section>
-
-      <div className="content-grid">
-        <section className="panel wide">
-          <PanelHeading eyebrow="Recursos Humanos" title="Base de personal" />
-          <div className="roadmap-grid">
-            {["Legajos", "Asistencia", "Salarios", "Contratos", "Vacaciones", "Reportes"].map(
-              (item) => (
-                <article className="roadmap-card" key={item}>
-                  <span>{item}</span>
-                  <strong>Preparado</strong>
-                </article>
-              ),
-            )}
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Funcionario</th>
-                  <th>Cargo</th>
-                  <th>Area</th>
-                  <th>Ingreso</th>
-                  <th>Salario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((employee) => (
-                  <tr key={employee.id}>
-                    <td>{employee.fullName}</td>
-                    <td>{employee.role}</td>
-                    <td>{employee.department}</td>
-                    <td>{formatDate(employee.startDate)}</td>
-                    <td>{money(employee.monthlySalary)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </section>
       </div>
     </>

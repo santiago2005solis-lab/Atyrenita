@@ -1028,7 +1028,40 @@ select:focus {
 }
 
 .movement-table {
-  min-width: 1180px;
+  min-width: 900px;
+  table-layout: fixed;
+}
+
+.movement-table th:nth-child(1) {
+  width: 80px;
+}
+
+.movement-table th:nth-child(2) {
+  width: 165px;
+}
+
+.movement-table th:nth-child(3) {
+  width: 145px;
+}
+
+.movement-table th:nth-child(4) {
+  width: 155px;
+}
+
+.movement-table th:nth-child(5) {
+  width: 70px;
+}
+
+.movement-table th:nth-child(6) {
+  width: 85px;
+}
+
+.movement-table th:nth-child(7) {
+  width: 110px;
+}
+
+.movement-table th:nth-child(8) {
+  width: 90px;
 }
 
 .movement-table thead {
@@ -1053,7 +1086,7 @@ select:focus {
 
 .table-primary {
   display: grid;
-  min-width: 150px;
+  min-width: 0;
   gap: 4px;
 }
 
@@ -1129,11 +1162,13 @@ select:focus {
 
 .table-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
 }
 
 .table-actions button {
+  width: 100%;
   min-height: 32px;
   padding: 0 9px;
   border: 1px solid var(--line);

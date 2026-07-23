@@ -69,7 +69,9 @@ create table if not exists finance_movements (
   amount numeric(16, 2) not null check (amount > 0),
   currency text not null default 'PYG',
   source_module text not null default 'manual',
-  status text not null default 'activo' check (status in ('activo', 'anulado')),
+  status text not null default 'borrador' check (
+    status in ('borrador', 'pendiente', 'confirmado', 'anulado')
+  ),
   payment_method text,
   document_number text,
   responsible text,
@@ -189,7 +191,7 @@ select
   sum(case when movement_type = 'transferencia' then amount else 0 end) as transfers,
   sum(case when movement_type = 'ingreso' then amount when movement_type = 'egreso' then -amount else 0 end) as balance
 from finance_movements
-where status = 'activo'
+where status = 'confirmado'
 group by cashbox_name, date_trunc('month', movement_date)::date;
 
 create or replace view inventory_stock_report as

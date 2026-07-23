@@ -23,7 +23,7 @@ type FinanceMovementRow = {
   related_party: string | null;
   responsible: string | null;
   source_module?: string | null;
-  status?: FinanceMovement["status"] | null;
+  status?: FinanceMovement["status"] | "activo" | null;
 };
 
 type InventoryItemRow = {
@@ -73,7 +73,7 @@ export function financeMovementFromRow(row: FinanceMovementRow): FinanceMovement
     responsible: row.responsible ?? "",
     relatedParty: row.related_party ?? "",
     sourceModule: row.source_module ?? "manual",
-    status: row.status ?? "activo",
+    status: row.status === "activo" || !row.status ? "confirmado" : row.status,
     notes: row.notes ?? "",
     createdAt: row.created_at,
   };

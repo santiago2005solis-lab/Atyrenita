@@ -76,6 +76,9 @@ Para el primer usuario:
 Si ya existe la base y se agregan los modulos nuevos, ejecutar `supabase/modules-update.sql`.
 Para activar la estructura financiera nueva en una base ya creada, ejecutar `supabase/finance-structure-update.sql`.
 
+Para activar el flujo de movimientos con estados Borrador, Pendiente, Confirmado y Anulado,
+ejecutar `supabase/finance-workflow-update.sql` en el SQL Editor de Supabase.
+
 ## Vercel
 
 1. Subir el proyecto a GitHub.

@@ -9,8 +9,10 @@ import { requireAppUser } from "@/lib/auth";
 import {
   isSupabaseConfigured,
   supabaseInsert,
+  supabasePatch,
   supabaseSelect,
 } from "@/lib/supabase-rest";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +45,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
+  const requestedStatus = body.status ?? "borrador";
+  const canApprove = hasPermission(
+    auth.user ?? undefined,
+    "financiero",
+    "administrador",
+  );
+
+  if (requestedStatus === "anulado") {
+    return NextResponse.json(
+      { error: "Un movimiento nuevo no puede crearse como anulado." },
+      { status: 400 },
+    );
+  }
+
+  if (requestedStatus === "confirmado" && !canApprove) {
+    return NextResponse.json(
+      { error: "Se requiere permiso de administrador para confirmar." },
+      { status: 403 },
+    );
+  }
+
   const payload = {
     accountName: body.accountName!,
     cashboxName: body.cashboxName!,
@@ -59,7 +82,7 @@ export async function POST(request: NextRequest) {
     responsible: body.responsible ?? "",
     relatedParty: body.relatedParty ?? "",
     sourceModule: body.sourceModule ?? "manual",
-    status: body.status ?? "activo",
+    status: requestedStatus,
     notes: body.notes ?? "",
   };
 
@@ -89,6 +112,87 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 },
   );
+}
+
+export async function PATCH(request: NextRequest) {
+  const auth = await requireAppUser(request, "financiero", "editor");
+  if (auth.error) return auth.error;
+
+  const body = (await request.json()) as {
+    id?: string;
+    status?: FinanceMovement["status"];
+  };
+  const allowedStatuses: FinanceMovement["status"][] = [
+    "borrador",
+    "pendiente",
+    "confirmado",
+    "anulado",
+  ];
+
+  if (!body.id || !body.status || !allowedStatuses.includes(body.status)) {
+    return NextResponse.json({ error: "Movimiento o estado no valido." }, { status: 400 });
+  }
+
+  const canApprove = hasPermission(
+    auth.user ?? undefined,
+    "financiero",
+    "administrador",
+  );
+
+  if (
+    (body.status === "confirmado" || body.status === "anulado") &&
+    !canApprove
+  ) {
+    return NextResponse.json(
+      { error: "Se requiere permiso de administrador para confirmar o anular." },
+      { status: 403 },
+    );
+  }
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      id: body.id,
+      status: body.status,
+      storageMode: "demo",
+    });
+  }
+
+  const currentRows = await supabaseSelect<unknown[]>(
+    `finance_movements?id=eq.${encodeURIComponent(body.id)}&select=*&limit=1`,
+  );
+  const currentMovement = currentRows[0]
+    ? financeMovementFromRow(currentRows[0] as never)
+    : null;
+
+  if (!currentMovement) {
+    return NextResponse.json({ error: "Movimiento no encontrado." }, { status: 404 });
+  }
+
+  const validTransition =
+    (currentMovement.status === "borrador" && body.status === "pendiente") ||
+    (canApprove &&
+      currentMovement.status === "pendiente" &&
+      (body.status === "confirmado" || body.status === "anulado")) ||
+    (canApprove &&
+      currentMovement.status === "confirmado" &&
+      body.status === "anulado");
+
+  if (!validTransition) {
+    return NextResponse.json(
+      { error: "El cambio de estado solicitado no esta permitido." },
+      { status: 409 },
+    );
+  }
+
+  const rows = await supabasePatch<unknown[]>(
+    `finance_movements?id=eq.${encodeURIComponent(body.id)}`,
+    { status: body.status },
+  );
+
+  return NextResponse.json({
+    movement: financeMovementFromRow(rows[0] as never),
+    storageMode: "supabase",
+  });
 }
 
 function validateMovement(body: Partial<FinanceMovement>) {

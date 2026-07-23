@@ -3,7 +3,7 @@ import type { AppUser } from "./permissions";
 export type StorageMode = "demo" | "supabase";
 
 export type FinanceMovementType = "ingreso" | "egreso" | "transferencia";
-export type FinanceMovementStatus = "activo" | "anulado";
+export type FinanceMovementStatus = "borrador" | "pendiente" | "confirmado" | "anulado";
 export type LinkedModule =
   | "Ganadero"
   | "Agricola"
@@ -204,7 +204,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Administracion",
     relatedParty: "Frigorifico regional",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Operacion de cierre semanal",
     createdAt: "2026-07-21T13:00:00.000Z",
   },
@@ -225,7 +225,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Compras",
     relatedParty: "Nutricion Campo",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Reposicion mensual",
     createdAt: "2026-07-20T13:00:00.000Z",
   },
@@ -246,7 +246,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Encargado campo",
     relatedParty: "Veterinaria Norte",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Plan sanitario trimestral",
     createdAt: "2026-07-18T13:00:00.000Z",
   },
@@ -267,7 +267,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Compras",
     relatedParty: "Agroinsumos Central",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Campana de invierno",
     createdAt: "2026-07-17T13:00:00.000Z",
   },
@@ -288,7 +288,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Taller",
     relatedParty: "Mecanica Diesel",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Cambio de filtros y reparacion hidraulica",
     createdAt: "2026-07-15T13:00:00.000Z",
   },
@@ -309,7 +309,7 @@ export const demoFinanceMovements: FinanceMovement[] = [
     responsible: "Gerencia",
     relatedParty: "Caja Ganadero a Pasto",
     sourceModule: "manual",
-    status: "activo",
+    status: "confirmado",
     notes: "Movimiento entre cajas",
     createdAt: "2026-07-12T13:00:00.000Z",
   },

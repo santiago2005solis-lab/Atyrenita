@@ -19,7 +19,12 @@ import {
   type InventoryMovement,
   type InventoryMovementType,
 } from "@/lib/company-data";
-import { canEditModule, canReadModule, type AppModule } from "@/lib/permissions";
+import {
+  canEditModule,
+  canReadModule,
+  hasPermission,
+  type AppModule,
+} from "@/lib/permissions";
 
 type ProtectedModuleId = Extract<
   AppModule,
@@ -109,7 +114,7 @@ const initialFinanceForm: FinanceForm = {
   relatedParty: "",
   responsible: "",
   sourceModule: "manual",
-  status: "activo",
+  status: "borrador",
 };
 
 const initialItemForm: ItemForm = {
@@ -171,10 +176,11 @@ export default function AppPage() {
   const [selectedCostCenter, setSelectedCostCenter] = useState("Todos");
   const [selectedFinanceAccount, setSelectedFinanceAccount] = useState("Todas");
   const [selectedFinanceModule, setSelectedFinanceModule] = useState("Todos");
-  const [selectedFinanceStatus, setSelectedFinanceStatus] = useState("activo");
+  const [selectedFinanceStatus, setSelectedFinanceStatus] = useState("Todos");
   const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
   const [selectedWarehouse, setSelectedWarehouse] = useState("Todos");
   const [saving, setSaving] = useState<SavingTarget>(null);
+  const [updatingMovementId, setUpdatingMovementId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Cargando datos del sistema...");
 
   useEffect(() => {
@@ -228,6 +234,11 @@ export default function AppPage() {
       ? "inicio"
       : activeModule;
   const canEditFinance = canEditModule(data.currentUser, "financiero");
+  const canApproveFinance = hasPermission(
+    data.currentUser,
+    "financiero",
+    "administrador",
+  );
   const canEditDeposito = canEditModule(data.currentUser, "deposito");
   const activeModuleTitle =
     effectiveActiveModule === "inicio"
@@ -248,7 +259,7 @@ export default function AppPage() {
   const money = (value: number) => moneyFormatter.format(value).replace("PYG", "Gs.");
 
   const financeReport = useMemo(() => {
-    const filtered = data.financeMovements.filter((movement) => {
+    const workflow = data.financeMovements.filter((movement) => {
       const byCashbox = selectedCashbox === "Todas" || movement.cashboxName === selectedCashbox;
       const byCostCenter =
         selectedCostCenter === "Todos" || movement.costCenterName === selectedCostCenter;
@@ -256,22 +267,31 @@ export default function AppPage() {
         selectedFinanceAccount === "Todas" || movement.accountName === selectedFinanceAccount;
       const byModule =
         selectedFinanceModule === "Todos" || movement.linkedModule === selectedFinanceModule;
-      const byStatus =
-        selectedFinanceStatus === "Todos" || movement.status === selectedFinanceStatus;
       const byMonth = !selectedMonth || movement.movementDate.startsWith(selectedMonth);
-      return byCashbox && byCostCenter && byAccount && byModule && byStatus && byMonth;
+      return byCashbox && byCostCenter && byAccount && byModule && byMonth;
     });
+    const filtered = workflow.filter(
+      (movement) =>
+        selectedFinanceStatus === "Todos" || movement.status === selectedFinanceStatus,
+    );
 
-    const activeFiltered = filtered.filter((movement) => movement.status !== "anulado");
+    const confirmedFiltered = filtered.filter((movement) => movement.status === "confirmado");
     const income = filtered
-      .filter((movement) => movement.status !== "anulado" && movement.movementType === "ingreso")
+      .filter(
+        (movement) =>
+          movement.status === "confirmado" && movement.movementType === "ingreso",
+      )
       .reduce((sum, movement) => sum + movement.amount, 0);
     const expense = filtered
-      .filter((movement) => movement.status !== "anulado" && movement.movementType === "egreso")
+      .filter(
+        (movement) =>
+          movement.status === "confirmado" && movement.movementType === "egreso",
+      )
       .reduce((sum, movement) => sum + movement.amount, 0);
     const transfer = filtered
       .filter(
-        (movement) => movement.status !== "anulado" && movement.movementType === "transferencia",
+        (movement) =>
+          movement.status === "confirmado" && movement.movementType === "transferencia",
       )
       .reduce((sum, movement) => sum + movement.amount, 0);
 
@@ -281,7 +301,8 @@ export default function AppPage() {
       filtered,
       income,
       transfer,
-      activeCount: activeFiltered.length,
+      activeCount: confirmedFiltered.length,
+      workflow,
     };
   }, [
     data.financeMovements,
@@ -296,7 +317,8 @@ export default function AppPage() {
   const cashboxSummaries = useMemo(() => {
     return data.cashboxes.map((cashbox) => {
       const movements = data.financeMovements.filter(
-        (movement) => movement.cashboxName === cashbox && movement.status !== "anulado",
+        (movement) =>
+          movement.cashboxName === cashbox && movement.status === "confirmado",
       );
       const income = movements
         .filter((movement) => movement.movementType === "ingreso")
@@ -458,6 +480,44 @@ export default function AppPage() {
       setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar.");
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function updateFinanceMovementStatus(
+    movementId: string,
+    status: FinanceMovementStatus,
+  ) {
+    if (!canEditFinance) {
+      setStatusMessage("Su usuario no puede modificar movimientos financieros.");
+      return;
+    }
+
+    setUpdatingMovementId(movementId);
+
+    try {
+      const response = await fetch("/api/finance/movements", {
+        body: JSON.stringify({ id: movementId, status }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo actualizar.");
+
+      setData((current) => ({
+        ...current,
+        financeMovements: current.financeMovements.map((movement) =>
+          movement.id === movementId
+            ? payload.movement ?? { ...movement, status }
+            : movement,
+        ),
+        storageMode: payload.storageMode ?? current.storageMode,
+      }));
+      setStatusMessage(`Movimiento actualizado a ${status}.`);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo actualizar.");
+    } finally {
+      setUpdatingMovementId(null);
     }
   }
 
@@ -707,6 +767,7 @@ export default function AppPage() {
         {effectiveActiveModule === "financiero" &&
           canReadModule(data.currentUser, "financiero") && (
           <FinanceModule
+            canApprove={canApproveFinance}
             canEdit={canEditFinance}
             cashboxSummaries={cashboxSummaries}
             costCenters={data.costCenters}
@@ -730,6 +791,8 @@ export default function AppPage() {
             setSelectedFinanceStatus={setSelectedFinanceStatus}
             setSelectedMonth={setSelectedMonth}
             submitFinanceMovement={submitFinanceMovement}
+            updateFinanceMovementStatus={updateFinanceMovementStatus}
+            updatingMovementId={updatingMovementId}
           />
         )}
 
@@ -846,6 +909,7 @@ function DashboardModule({
     filtered: FinanceMovement[];
     income: number;
     transfer: number;
+    workflow: FinanceMovement[];
   };
   inventoryReport: {
     byWarehouse: Array<{
@@ -1053,6 +1117,7 @@ function BaseOperationalModule({
 }
 
 function FinanceModule({
+  canApprove,
   canEdit,
   cashboxSummaries,
   costCenters,
@@ -1076,7 +1141,10 @@ function FinanceModule({
   setSelectedFinanceStatus,
   setSelectedMonth,
   submitFinanceMovement,
+  updateFinanceMovementStatus,
+  updatingMovementId,
 }: {
+  canApprove: boolean;
   canEdit: boolean;
   cashboxSummaries: Array<{
     balance: number;
@@ -1096,6 +1164,7 @@ function FinanceModule({
     filtered: FinanceMovement[];
     income: number;
     transfer: number;
+    workflow: FinanceMovement[];
   };
   money: (value: number) => string;
   saving: SavingTarget;
@@ -1113,13 +1182,46 @@ function FinanceModule({
   setSelectedFinanceStatus: (status: string) => void;
   setSelectedMonth: (month: string) => void;
   submitFinanceMovement: (event: FormEvent<HTMLFormElement>) => void;
+  updateFinanceMovementStatus: (
+    movementId: string,
+    status: FinanceMovementStatus,
+  ) => void;
+  updatingMovementId: string | null;
 }) {
   const [activeFinanceBlock, setActiveFinanceBlock] = useState<FinanceBlockId>("resumen");
-  const activeMovements = financeReport.filtered.filter((movement) => movement.status === "activo");
-  const inactiveCount = financeReport.filtered.length - activeMovements.length;
+  const [movementSearch, setMovementSearch] = useState("");
+  const confirmedMovements = financeReport.filtered.filter(
+    (movement) => movement.status === "confirmado",
+  );
+  const workflowCounts = {
+    anulado: financeReport.workflow.filter((movement) => movement.status === "anulado").length,
+    borrador: financeReport.workflow.filter((movement) => movement.status === "borrador").length,
+    confirmado: financeReport.workflow.filter((movement) => movement.status === "confirmado")
+      .length,
+    pendiente: financeReport.workflow.filter((movement) => movement.status === "pendiente")
+      .length,
+  };
+  const normalizedSearch = movementSearch.trim().toLocaleLowerCase("es");
+  const visibleMovements = financeReport.filtered.filter((movement) => {
+    if (!normalizedSearch) return true;
+    return [
+      movement.concept,
+      movement.documentNumber,
+      movement.relatedParty,
+      movement.responsible,
+      movement.cashboxName,
+      movement.linkedModule,
+      movement.accountName,
+      movement.costCenterName,
+    ].some((value) => value.toLocaleLowerCase("es").includes(normalizedSearch));
+  });
   const latestMovements = financeReport.filtered.slice(0, 6);
-  const expenseMovements = activeMovements.filter((movement) => movement.movementType === "egreso");
-  const incomeMovements = activeMovements.filter((movement) => movement.movementType === "ingreso");
+  const expenseMovements = confirmedMovements.filter(
+    (movement) => movement.movementType === "egreso",
+  );
+  const incomeMovements = confirmedMovements.filter(
+    (movement) => movement.movementType === "ingreso",
+  );
 
   function summarizeMovements(movements: FinanceMovement[]) {
     const income = movements
@@ -1144,25 +1246,25 @@ function FinanceModule({
   const moduleSummaries = linkedModules.map((module) => ({
     label: module,
     ...summarizeMovements(
-      activeMovements.filter((movement) => movement.linkedModule === module),
+      confirmedMovements.filter((movement) => movement.linkedModule === module),
     ),
   }));
   const accountSummaries = financeAccounts.map((account) => ({
     label: account,
     ...summarizeMovements(
-      activeMovements.filter((movement) => movement.accountName === account),
+      confirmedMovements.filter((movement) => movement.accountName === account),
     ),
   }));
   const costCenterSummaries = costCenters.map((costCenter) => ({
     label: costCenter,
     ...summarizeMovements(
-      activeMovements.filter((movement) => movement.costCenterName === costCenter),
+      confirmedMovements.filter((movement) => movement.costCenterName === costCenter),
     ),
   }));
 
   const movementFormPanel = (
-    <section className="panel">
-      <PanelHeading eyebrow="Financiero" title="Nuevo movimiento de caja" />
+    <section className="panel movement-entry-panel">
+      <PanelHeading eyebrow="Nuevo registro" title="Cargar movimiento" />
       {!canEdit && (
         <div className="status-banner locked">
           Permiso lector: puede consultar reportes, pero no cargar movimientos.
@@ -1170,37 +1272,96 @@ function FinanceModule({
       )}
       <form className="movement-form" onSubmit={submitFinanceMovement}>
         <fieldset className="form-fieldset" disabled={!canEdit || saving === "finance"}>
-          <div className="segmented" role="group" aria-label="Tipo de movimiento">
-            {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map((type) => (
-              <button
-                className={financeForm.movementType === type ? "selected" : ""}
-                key={type}
-                onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
-                type="button"
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+          <section className="form-section">
+            <div className="form-section-heading">
+              <span>01</span>
+              <div>
+                <strong>Datos principales</strong>
+                <small>Operacion, caja, fecha y monto</small>
+              </div>
+            </div>
 
-          <label>
-            Caja
-            <select
-              onChange={(event) =>
-                setFinanceForm({ ...financeForm, cashboxName: event.target.value })
-              }
-              value={financeForm.cashboxName}
-            >
-              {cashboxes.map((cashbox) => (
-                <option key={cashbox}>{cashbox}</option>
-              ))}
-            </select>
-          </label>
+            <div className="segmented" role="group" aria-label="Tipo de movimiento">
+              {(["ingreso", "egreso", "transferencia"] as FinanceMovementType[]).map(
+                (type) => (
+                  <button
+                    className={financeForm.movementType === type ? "selected" : ""}
+                    key={type}
+                    onClick={() => setFinanceForm({ ...financeForm, movementType: type })}
+                    type="button"
+                  >
+                    {type}
+                  </button>
+                ),
+              )}
+            </div>
 
-          <div className="field-row">
+            <div className="field-row">
+              <label>
+                Caja
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, cashboxName: event.target.value })
+                  }
+                  value={financeForm.cashboxName}
+                >
+                  {cashboxes.map((cashbox) => (
+                    <option key={cashbox}>{cashbox}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Fecha
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, movementDate: event.target.value })
+                  }
+                  type="date"
+                  value={financeForm.movementDate}
+                />
+              </label>
+            </div>
+
             <label>
-              Modulo vinculado
-              <select
+              Concepto
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, concept: event.target.value })
+                }
+                placeholder="Ej. compra de balanceado"
+                value={financeForm.concept}
+              />
+            </label>
+
+            <label>
+              Monto
+              <div className="amount-input">
+                <span>Gs.</span>
+                <input
+                  inputMode="numeric"
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, amount: event.target.value })
+                  }
+                  placeholder="0"
+                  value={financeForm.amount}
+                />
+              </div>
+            </label>
+          </section>
+
+          <section className="form-section">
+            <div className="form-section-heading">
+              <span>02</span>
+              <div>
+                <strong>Clasificacion</strong>
+                <small>Destino contable y operativo</small>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Modulo vinculado
+                <select
                 onChange={(event) =>
                   setFinanceForm({
                     ...financeForm,
@@ -1225,125 +1386,99 @@ function FinanceModule({
                 {financeAccounts.map((account) => (
                   <option key={account}>{account}</option>
                 ))}
-              </select>
-            </label>
-          </div>
+                </select>
+              </label>
+            </div>
 
-          <label>
-            Centro de costo
-            <select
-              onChange={(event) =>
-                setFinanceForm({ ...financeForm, costCenterName: event.target.value })
-              }
-              value={financeForm.costCenterName}
-            >
-              {costCenters.map((costCenter) => (
-                <option key={costCenter}>{costCenter}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Concepto
-            <input
-              onChange={(event) =>
-                setFinanceForm({ ...financeForm, concept: event.target.value })
-              }
-              placeholder="Ej. venta, compra, anticipo"
-              value={financeForm.concept}
-            />
-          </label>
-
-          <div className="field-row">
             <label>
-              Monto
-              <input
-                inputMode="numeric"
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, amount: event.target.value })
-                }
-                placeholder="0"
-                value={financeForm.amount}
-              />
-            </label>
-            <label>
-              Fecha
-              <input
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, movementDate: event.target.value })
-                }
-                type="date"
-                value={financeForm.movementDate}
-              />
-            </label>
-          </div>
-
-          <div className="field-row">
-            <label>
-              Categoria
+              Centro de costo
               <select
                 onChange={(event) =>
-                  setFinanceForm({ ...financeForm, category: event.target.value })
+                  setFinanceForm({ ...financeForm, costCenterName: event.target.value })
                 }
-                value={financeForm.category}
+                value={financeForm.costCenterName}
               >
-                {financeCategories.map((category) => (
-                  <option key={category}>{category}</option>
+                {costCenters.map((costCenter) => (
+                  <option key={costCenter}>{costCenter}</option>
                 ))}
               </select>
             </label>
-            <label>
-              Medio
-              <select
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, paymentMethod: event.target.value })
-                }
-                value={financeForm.paymentMethod}
-              >
-                {paymentMethods.map((method) => (
-                  <option key={method}>{method}</option>
-                ))}
-              </select>
-            </label>
-          </div>
 
-          <div className="field-row">
+            <div className="field-row">
+              <label>
+                Categoria
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, category: event.target.value })
+                  }
+                  value={financeForm.category}
+                >
+                  {financeCategories.map((category) => (
+                    <option key={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Medio de pago
+                <select
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, paymentMethod: event.target.value })
+                  }
+                  value={financeForm.paymentMethod}
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method}>{method}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section className="form-section">
+            <div className="form-section-heading">
+              <span>03</span>
+              <div>
+                <strong>Respaldo y control</strong>
+                <small>Comprobante, responsable y revision</small>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Comprobante
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, documentNumber: event.target.value })
+                  }
+                  placeholder="Factura o recibo"
+                  value={financeForm.documentNumber}
+                />
+              </label>
+              <label>
+                Responsable
+                <input
+                  onChange={(event) =>
+                    setFinanceForm({ ...financeForm, responsible: event.target.value })
+                  }
+                  placeholder="Persona o sector"
+                  value={financeForm.responsible}
+                />
+              </label>
+            </div>
+
             <label>
-              Comprobante
+              Contraparte
               <input
                 onChange={(event) =>
-                  setFinanceForm({ ...financeForm, documentNumber: event.target.value })
+                  setFinanceForm({ ...financeForm, relatedParty: event.target.value })
                 }
-                placeholder="Factura, recibo, transferencia"
-                value={financeForm.documentNumber}
+                placeholder="Cliente, proveedor o caja destino"
+                value={financeForm.relatedParty}
               />
             </label>
-            <label>
-              Responsable
-              <input
-                onChange={(event) =>
-                  setFinanceForm({ ...financeForm, responsible: event.target.value })
-                }
-                placeholder="Persona o sector"
-                value={financeForm.responsible}
-              />
-            </label>
-          </div>
 
-          <label>
-            Contraparte
-            <input
-              onChange={(event) =>
-                setFinanceForm({ ...financeForm, relatedParty: event.target.value })
-              }
-              placeholder="Cliente, proveedor o caja destino"
-              value={financeForm.relatedParty}
-            />
-          </label>
-
-          <div className="field-row">
             <label>
-              Estado
+              Guardar como
               <select
                 onChange={(event) =>
                   setFinanceForm({
@@ -1353,30 +1488,34 @@ function FinanceModule({
                 }
                 value={financeForm.status}
               >
-                <option value="activo">activo</option>
-                <option value="anulado">anulado</option>
+                <option value="borrador">Borrador</option>
+                <option value="pendiente">Pendiente de revision</option>
+                {canApprove && <option value="confirmado">Confirmado</option>}
               </select>
             </label>
+
             <label>
-              Origen
-              <input readOnly value={financeForm.sourceModule} />
+              Notas
+              <input
+                onChange={(event) =>
+                  setFinanceForm({ ...financeForm, notes: event.target.value })
+                }
+                placeholder="Detalle interno"
+                value={financeForm.notes}
+              />
             </label>
+          </section>
+
+          <div className="form-actions">
+            <span>Origen: {financeForm.sourceModule}</span>
+            <button
+              className="submit-button"
+              disabled={!canEdit || saving === "finance"}
+              type="submit"
+            >
+              {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
+            </button>
           </div>
-
-          <label>
-            Notas
-            <input
-              onChange={(event) =>
-                setFinanceForm({ ...financeForm, notes: event.target.value })
-              }
-              placeholder="Detalle interno"
-              value={financeForm.notes}
-            />
-          </label>
-
-          <button className="submit-button" disabled={!canEdit || saving === "finance"} type="submit">
-            {saving === "finance" ? "Guardando..." : "Guardar movimiento"}
-          </button>
         </fieldset>
       </form>
     </section>
@@ -1450,8 +1589,10 @@ function FinanceModule({
             value={selectedFinanceStatus}
           >
             <option>Todos</option>
-            <option value="activo">activo</option>
-            <option value="anulado">anulado</option>
+            <option value="borrador">Borrador</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="anulado">Anulado</option>
           </select>
         </label>
         <label>
@@ -1465,7 +1606,7 @@ function FinanceModule({
       </div>
 
       <p className="muted-text">
-        {financeReport.activeCount} movimientos activos en el filtro actual.
+        {financeReport.activeCount} movimientos confirmados en el filtro actual.
       </p>
 
       <MovementTable movements={financeReport.filtered} money={money} />
@@ -1578,26 +1719,150 @@ function FinanceModule({
       {activeFinanceBlock === "cajas" && cashboxesPanel}
 
       {activeFinanceBlock === "movimientos" && (
-        <div className="content-grid finance-layout">
-          {movementFormPanel}
-          <section className="panel">
-            <PanelHeading eyebrow="Movimientos" title="Lectura rapida" />
-            <div className="summary-grid">
+        <div className="finance-movements-layout">
+          <section className="panel movement-ledger-panel">
+            <div className="panel-heading movement-ledger-heading">
               <div>
-                <span>Ingresos activos</span>
-                <strong>{String(incomeMovements.length)}</strong>
+                <p className="eyebrow">Registro central</p>
+                <h3>Movimientos financieros</h3>
               </div>
-              <div>
-                <span>Egresos activos</span>
-                <strong>{String(expenseMovements.length)}</strong>
-              </div>
-              <div>
-                <span>Anulados filtrados</span>
-                <strong>{String(inactiveCount)}</strong>
-              </div>
+              <span>{visibleMovements.length} registros</span>
             </div>
+
+            <div className="movement-toolbar">
+              <label className="movement-search">
+                Buscar
+                <input
+                  onChange={(event) => setMovementSearch(event.target.value)}
+                  placeholder="Concepto, comprobante, responsable..."
+                  type="search"
+                  value={movementSearch}
+                />
+              </label>
+              <label>
+                Caja
+                <select
+                  onChange={(event) => setSelectedCashbox(event.target.value)}
+                  value={selectedCashbox}
+                >
+                  <option>Todas</option>
+                  {cashboxes.map((cashbox) => (
+                    <option key={cashbox}>{cashbox}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Modulo
+                <select
+                  onChange={(event) => setSelectedFinanceModule(event.target.value)}
+                  value={selectedFinanceModule}
+                >
+                  <option>Todos</option>
+                  {linkedModules.map((module) => (
+                    <option key={module}>{module}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Estado
+                <select
+                  onChange={(event) => setSelectedFinanceStatus(event.target.value)}
+                  value={selectedFinanceStatus}
+                >
+                  <option>Todos</option>
+                  <option value="borrador">Borrador</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="confirmado">Confirmado</option>
+                  <option value="anulado">Anulado</option>
+                </select>
+              </label>
+              <label>
+                Mes
+                <input
+                  onChange={(event) => setSelectedMonth(event.target.value)}
+                  type="month"
+                  value={selectedMonth}
+                />
+              </label>
+              <button
+                className="secondary-button clear-filters"
+                onClick={() => {
+                  setMovementSearch("");
+                  setSelectedCashbox("Todas");
+                  setSelectedFinanceModule("Todos");
+                  setSelectedFinanceStatus("Todos");
+                  setSelectedMonth("");
+                }}
+                type="button"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
+            <MovementTable
+              canApprove={canApprove}
+              canEdit={canEdit}
+              money={money}
+              movements={visibleMovements}
+              onStatusChange={updateFinanceMovementStatus}
+              updatingMovementId={updatingMovementId}
+            />
           </section>
-          {reportPanel}
+
+          <div className="content-grid finance-entry-layout">
+            {movementFormPanel}
+            <section className="panel workflow-panel">
+              <PanelHeading eyebrow="Control" title="Estado del registro" />
+              <div className="workflow-summary">
+                <button
+                  className={selectedFinanceStatus === "borrador" ? "active" : ""}
+                  onClick={() => setSelectedFinanceStatus("borrador")}
+                  type="button"
+                >
+                  <span className="status-dot draft" />
+                  <span>Borradores</span>
+                  <strong>{workflowCounts.borrador}</strong>
+                </button>
+                <button
+                  className={selectedFinanceStatus === "pendiente" ? "active" : ""}
+                  onClick={() => setSelectedFinanceStatus("pendiente")}
+                  type="button"
+                >
+                  <span className="status-dot pending" />
+                  <span>Pendientes</span>
+                  <strong>{workflowCounts.pendiente}</strong>
+                </button>
+                <button
+                  className={selectedFinanceStatus === "confirmado" ? "active" : ""}
+                  onClick={() => setSelectedFinanceStatus("confirmado")}
+                  type="button"
+                >
+                  <span className="status-dot confirmed" />
+                  <span>Confirmados</span>
+                  <strong>{workflowCounts.confirmado}</strong>
+                </button>
+                <button
+                  className={selectedFinanceStatus === "anulado" ? "active" : ""}
+                  onClick={() => setSelectedFinanceStatus("anulado")}
+                  type="button"
+                >
+                  <span className="status-dot cancelled" />
+                  <span>Anulados</span>
+                  <strong>{workflowCounts.anulado}</strong>
+                </button>
+              </div>
+              <div className="workflow-totals">
+                <div>
+                  <span>Ingresos confirmados</span>
+                  <strong>{money(financeReport.income)}</strong>
+                </div>
+                <div>
+                  <span>Egresos confirmados</span>
+                  <strong>{money(financeReport.expense)}</strong>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       )}
 
@@ -2217,45 +2482,143 @@ function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 }
 
 function MovementTable({
+  canApprove = false,
+  canEdit = false,
   money,
   movements,
+  onStatusChange,
+  updatingMovementId,
 }: {
+  canApprove?: boolean;
+  canEdit?: boolean;
   money: (value: number) => string;
   movements: FinanceMovement[];
+  onStatusChange?: (
+    movementId: string,
+    status: FinanceMovementStatus,
+  ) => void;
+  updatingMovementId?: string | null;
 }) {
+  const statusLabels: Record<FinanceMovementStatus, string> = {
+    anulado: "Anulado",
+    borrador: "Borrador",
+    confirmado: "Confirmado",
+    pendiente: "Pendiente",
+  };
+
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap movement-table-wrap">
+      <table className="movement-table">
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>Caja</th>
-            <th>Modulo</th>
-            <th>Cuenta</th>
-            <th>Centro</th>
+            <th>Movimiento</th>
+            <th>Origen</th>
+            <th>Clasificacion</th>
             <th>Tipo</th>
             <th>Estado</th>
-            <th>Concepto</th>
-            <th>Categoria</th>
             <th>Monto</th>
+            {onStatusChange && <th>Acciones</th>}
           </tr>
         </thead>
         <tbody>
+          {movements.length === 0 && (
+            <tr>
+              <td className="table-empty" colSpan={onStatusChange ? 8 : 7}>
+                No hay movimientos que coincidan con los filtros.
+              </td>
+            </tr>
+          )}
           {movements.map((movement) => (
             <tr key={movement.id}>
               <td>{formatDate(movement.movementDate)}</td>
-              <td>{movement.cashboxName}</td>
-              <td>{movement.linkedModule}</td>
-              <td>{movement.accountName}</td>
-              <td>{movement.costCenterName}</td>
-              <td>{movement.movementType}</td>
-              <td>{movement.status}</td>
-              <td>{movement.concept}</td>
-              <td>{movement.category}</td>
-              <td className={movement.movementType === "egreso" ? "negative" : "positive"}>
+              <td>
+                <div className="table-primary">
+                  <strong>{movement.concept}</strong>
+                  <span>{movement.documentNumber || "Sin comprobante"}</span>
+                </div>
+              </td>
+              <td>
+                <div className="table-primary">
+                  <strong>{movement.linkedModule}</strong>
+                  <span>{movement.cashboxName}</span>
+                </div>
+              </td>
+              <td>
+                <div className="table-primary">
+                  <strong>{movement.accountName}</strong>
+                  <span>{movement.costCenterName}</span>
+                </div>
+              </td>
+              <td>
+                <span className={`movement-type ${movement.movementType}`}>
+                  {movement.movementType}
+                </span>
+              </td>
+              <td>
+                <span className={`status-badge ${movement.status}`}>
+                  {statusLabels[movement.status]}
+                </span>
+              </td>
+              <td
+                className={
+                  movement.movementType === "egreso"
+                    ? "negative amount-cell"
+                    : "positive amount-cell"
+                }
+              >
                 {movement.movementType === "egreso" ? "-" : "+"}
                 {money(movement.amount)}
               </td>
+              {onStatusChange && (
+                <td>
+                  <div className="table-actions">
+                    {movement.status === "borrador" && canEdit && (
+                      <button
+                        disabled={updatingMovementId === movement.id}
+                        onClick={() => onStatusChange(movement.id, "pendiente")}
+                        type="button"
+                      >
+                        Enviar
+                      </button>
+                    )}
+                    {movement.status === "pendiente" && canApprove && (
+                      <>
+                        <button
+                          className="confirm"
+                          disabled={updatingMovementId === movement.id}
+                          onClick={() => onStatusChange(movement.id, "confirmado")}
+                          type="button"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          className="cancel"
+                          disabled={updatingMovementId === movement.id}
+                          onClick={() => onStatusChange(movement.id, "anulado")}
+                          type="button"
+                        >
+                          Anular
+                        </button>
+                      </>
+                    )}
+                    {movement.status === "confirmado" && canApprove && (
+                      <button
+                        className="cancel"
+                        disabled={updatingMovementId === movement.id}
+                        onClick={() => onStatusChange(movement.id, "anulado")}
+                        type="button"
+                      >
+                        Anular
+                      </button>
+                    )}
+                    {movement.status === "anulado" && <span className="closed-label">Cerrado</span>}
+                    {movement.status === "pendiente" && !canApprove && (
+                      <span className="closed-label">En revision</span>
+                    )}
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

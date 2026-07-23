@@ -540,7 +540,11 @@ button:disabled {
   gap: 3px;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.finance-block-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .finance-block-navigation {
@@ -1113,40 +1117,40 @@ select:focus {
 }
 
 .movement-table {
-  min-width: 900px;
+  min-width: 980px;
   table-layout: fixed;
 }
 
 .movement-table th:nth-child(1) {
-  width: 80px;
+  width: 105px;
 }
 
 .movement-table th:nth-child(2) {
-  width: 165px;
+  width: 175px;
 }
 
 .movement-table th:nth-child(3) {
-  width: 145px;
+  width: 150px;
 }
 
 .movement-table th:nth-child(4) {
-  width: 155px;
+  width: 165px;
 }
 
 .movement-table th:nth-child(5) {
-  width: 70px;
+  width: 75px;
 }
 
 .movement-table th:nth-child(6) {
-  width: 85px;
+  width: 95px;
 }
 
 .movement-table th:nth-child(7) {
-  width: 110px;
+  width: 120px;
 }
 
 .movement-table th:nth-child(8) {
-  width: 90px;
+  width: 95px;
 }
 
 .movement-table thead {
@@ -1163,6 +1167,10 @@ select:focus {
 
 .movement-table td {
   padding: 14px 16px;
+}
+
+.movement-table td:first-child {
+  white-space: nowrap;
 }
 
 .movement-table tbody tr:hover {

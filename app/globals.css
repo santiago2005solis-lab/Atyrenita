@@ -621,18 +621,23 @@ button:disabled {
 }
 
 .finance-summary-heading {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 170px);
   align-items: end;
-  justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .finance-summary-heading label {
-  width: 170px;
+  width: 100%;
+  min-width: 0;
+  max-width: 170px;
+  justify-self: end;
 }
 
 .finance-summary-heading input {
+  min-width: 0;
+  max-width: 100%;
   min-height: 38px;
 }
 
@@ -1706,11 +1711,13 @@ th:last-child {
   }
 
   .finance-summary-heading {
-    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .finance-summary-heading label {
     width: 100%;
+    max-width: 100%;
+    justify-self: stretch;
   }
 
   .account-row,

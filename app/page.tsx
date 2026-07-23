@@ -774,6 +774,7 @@ export default function AppPage() {
             exportFinanceCsv={exportFinanceCsv}
             financeAccounts={data.financeAccounts}
             financeForm={financeForm}
+            financeMovements={data.financeMovements}
             financeReport={financeReport}
             money={money}
             saving={saving}
@@ -1124,6 +1125,7 @@ function FinanceModule({
   exportFinanceCsv,
   financeAccounts,
   financeForm,
+  financeMovements,
   financeReport,
   money,
   saving,
@@ -1157,6 +1159,7 @@ function FinanceModule({
   exportFinanceCsv: () => void;
   financeAccounts: string[];
   financeForm: FinanceForm;
+  financeMovements: FinanceMovement[];
   financeReport: {
     activeCount: number;
     balance: number;
@@ -1188,8 +1191,12 @@ function FinanceModule({
   ) => void;
   updatingMovementId: string | null;
 }) {
-  const [activeFinanceBlock, setActiveFinanceBlock] = useState<FinanceBlockId>("resumen");
+  const [activeFinanceBlock, setActiveFinanceBlock] = useState<FinanceBlockId>("movimientos");
   const [movementSearch, setMovementSearch] = useState("");
+  const activeFinanceBlockLabel =
+    financeBlockDefinitions.find((block) => block.id === activeFinanceBlock)?.label ??
+    "Movimientos";
+  const summaryMonth = selectedMonth || today.slice(0, 7);
   const confirmedMovements = financeReport.filtered.filter(
     (movement) => movement.status === "confirmado",
   );
@@ -1242,6 +1249,14 @@ function FinanceModule({
       transfer,
     };
   }
+
+  const monthlySummary = summarizeMovements(
+    financeMovements.filter(
+      (movement) =>
+        movement.status === "confirmado" &&
+        movement.movementDate.startsWith(summaryMonth),
+    ),
+  );
 
   const moduleSummaries = linkedModules.map((module) => ({
     label: module,
@@ -1645,74 +1660,101 @@ function FinanceModule({
 
   return (
     <>
-      <div
-        className="finance-block-tabs finance-block-tabs-main"
-        role="tablist"
-        aria-label="Bloques financieros"
-      >
-        {financeBlockDefinitions.map((block) => (
-          <button
-            aria-selected={activeFinanceBlock === block.id}
-            className={activeFinanceBlock === block.id ? "active" : ""}
-            key={block.id}
-            onClick={() => setActiveFinanceBlock(block.id)}
-            role="tab"
-            type="button"
-          >
-            {block.label}
-          </button>
-        ))}
-      </div>
-
-      <section className="kpi-grid" aria-label="Indicadores financieros">
-        <KpiCard label="Saldo neto filtrado" value={money(financeReport.balance)} />
-        <KpiCard label="Ingresos" value={money(financeReport.income)} />
-        <KpiCard label="Egresos" tone="warning" value={money(financeReport.expense)} />
-        <KpiCard label="Transferencias" tone="blue" value={money(financeReport.transfer)} />
+      <section className="finance-block-navigation">
+        <div className="finance-block-status">
+          <span>Bloque activo</span>
+          <strong>{activeFinanceBlockLabel}</strong>
+        </div>
+        <div
+          className="finance-block-tabs finance-block-tabs-main"
+          role="tablist"
+          aria-label="Bloques financieros"
+        >
+          {financeBlockDefinitions.map((block) => (
+            <button
+              aria-selected={activeFinanceBlock === block.id}
+              className={activeFinanceBlock === block.id ? "active" : ""}
+              key={block.id}
+              onClick={() => setActiveFinanceBlock(block.id)}
+              role="tab"
+              type="button"
+            >
+              {block.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       {activeFinanceBlock === "resumen" && (
-        <div className="finance-block-grid">
-          <section className="panel">
-            <PanelHeading eyebrow="Resumen" title="Flujo por modulo" />
-            <div className="report-stack">
-              {moduleSummaries.map((summary) => (
-                <article className="report-card" key={summary.label}>
-                  <div>
-                    <strong>{summary.label}</strong>
-                    <span>{summary.count} movimientos</span>
-                  </div>
-                  <strong className={summary.balance < 0 ? "negative" : "positive"}>
-                    {money(summary.balance)}
-                  </strong>
-                </article>
-              ))}
+        <div className="finance-summary">
+          <div className="finance-summary-heading">
+            <div>
+              <p className="eyebrow">Resumen mensual</p>
+              <h3>Indicadores financieros</h3>
             </div>
+            <label>
+              Mes
+              <input
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                type="month"
+                value={summaryMonth}
+              />
+            </label>
+          </div>
+
+          <section className="kpi-grid finance-summary-kpis" aria-label="Indicadores mensuales">
+            <KpiCard label="Saldo del mes" value={money(monthlySummary.balance)} />
+            <KpiCard label="Ingresos del mes" value={money(monthlySummary.income)} />
+            <KpiCard label="Egresos del mes" tone="warning" value={money(monthlySummary.expense)} />
+            <KpiCard
+              label="Transferencias del mes"
+              tone="blue"
+              value={money(monthlySummary.transfer)}
+            />
           </section>
-          <section className="panel">
-            <PanelHeading eyebrow="Actividad" title="Ultimos movimientos" />
-            <div className="activity-list">
-              {latestMovements.map((movement) => (
-                <article className="activity-row" key={movement.id}>
-                  <div>
-                    <span>{movement.linkedModule}</span>
-                    <strong>{movement.concept}</strong>
-                    <small>
-                      {movement.cashboxName} | {movement.accountName}
-                    </small>
-                  </div>
-                  <div className="activity-meta">
-                    <time>{formatDate(movement.movementDate)}</time>
-                    <em className={movement.movementType === "egreso" ? "negative" : ""}>
-                      {movement.movementType === "egreso" ? "-" : "+"}
-                      {money(movement.amount)}
-                    </em>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-          {cashboxesPanel}
+
+          <div className="finance-block-grid">
+            <section className="panel">
+              <PanelHeading eyebrow="Resumen" title="Flujo por modulo" />
+              <div className="report-stack">
+                {moduleSummaries.map((summary) => (
+                  <article className="report-card" key={summary.label}>
+                    <div>
+                      <strong>{summary.label}</strong>
+                      <span>{summary.count} movimientos</span>
+                    </div>
+                    <strong className={summary.balance < 0 ? "negative" : "positive"}>
+                      {money(summary.balance)}
+                    </strong>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHeading eyebrow="Actividad" title="Ultimos movimientos" />
+              <div className="activity-list">
+                {latestMovements.map((movement) => (
+                  <article className="activity-row" key={movement.id}>
+                    <div>
+                      <span>{movement.linkedModule}</span>
+                      <strong>{movement.concept}</strong>
+                      <small>
+                        {movement.cashboxName} | {movement.accountName}
+                      </small>
+                    </div>
+                    <div className="activity-meta">
+                      <time>{formatDate(movement.movementDate)}</time>
+                      <em className={movement.movementType === "egreso" ? "negative" : ""}>
+                        {movement.movementType === "egreso" ? "-" : "+"}
+                        {money(movement.amount)}
+                      </em>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+            {cashboxesPanel}
+          </div>
         </div>
       )}
 

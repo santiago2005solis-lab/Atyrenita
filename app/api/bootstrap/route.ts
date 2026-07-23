@@ -60,7 +60,12 @@ export async function GET(request: NextRequest) {
         department: String((row as { department?: string }).department ?? ""),
         status: ((row as { status?: "activo" | "licencia" | "inactivo" }).status ?? "activo"),
         startDate: String((row as { start_date?: string }).start_date ?? ""),
+        salaryType:
+          (row as { salary_type?: "mensual" | "jornal" }).salary_type === "jornal"
+            ? "jornal"
+            : "mensual",
         monthlySalary: Number((row as { monthly_salary?: number | string }).monthly_salary ?? 0),
+        dailyWage: Number((row as { daily_wage?: number | string }).daily_wage ?? 0),
         notes: String((row as { notes?: string }).notes ?? ""),
       })),
     };

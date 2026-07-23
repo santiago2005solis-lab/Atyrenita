@@ -146,7 +146,9 @@ create table if not exists hr_employees (
   department text,
   status text not null default 'activo' check (status in ('activo', 'licencia', 'inactivo')),
   start_date date,
+  salary_type text not null default 'mensual' check (salary_type in ('mensual', 'jornal')),
   monthly_salary numeric(16, 2) not null default 0,
+  daily_wage numeric(16, 2) not null default 0,
   notes text,
   created_at timestamptz not null default now()
 );

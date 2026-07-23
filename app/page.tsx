@@ -426,9 +426,12 @@ export default function AppPage() {
     if (canReadModule(data.currentUser, "rrhh")) {
       activities.push(
         ...data.hrEmployees.map((employee) => ({
-          amount: employee.monthlySalary,
+          amount:
+            employee.salaryType === "jornal"
+              ? employee.dailyWage
+              : employee.monthlySalary,
           date: employee.startDate,
-          detail: `${employee.department} | ${employee.status}`,
+          detail: `${employee.department} | ${employee.salaryType} | ${employee.status}`,
           id: `hr-${employee.id}`,
           module: "Recursos Humanos",
           title: employee.fullName,
@@ -945,7 +948,11 @@ function DashboardModule({
   setActiveModule: (module: ModuleId) => void;
 }) {
   const activeEmployees = data.hrEmployees.filter((employee) => employee.status === "activo");
-  const payroll = activeEmployees.reduce((sum, employee) => sum + employee.monthlySalary, 0);
+  const payroll = activeEmployees.reduce(
+    (sum, employee) =>
+      sum + (employee.salaryType === "mensual" ? employee.monthlySalary : 0),
+    0,
+  );
   const negativeCashboxes = data.cashboxes.filter((cashbox) => {
     const balance = data.financeMovements
       .filter((movement) => movement.cashboxName === cashbox)

@@ -82,18 +82,27 @@ function validateEmployee(body: EmployeeBody) {
   ) {
     return "El estado del funcionario no es valido.";
   }
+  if (
+    body.salaryType &&
+    !["mensual", "jornal"].includes(body.salaryType)
+  ) {
+    return "La modalidad salarial no es valida.";
+  }
   if (Number(body.monthlySalary) < 0) return "El salario no puede ser negativo.";
+  if (Number(body.dailyWage) < 0) return "El jornal no puede ser negativo.";
   return "";
 }
 
 function employeeFromBody(body: EmployeeBody): Omit<HrEmployee, "id"> {
   return {
+    dailyWage: Number(body.dailyWage) || 0,
     department: body.department?.trim() ?? "",
     documentNumber: body.documentNumber?.trim() ?? "",
     fullName: body.fullName?.trim() ?? "",
     monthlySalary: Number(body.monthlySalary) || 0,
     notes: body.notes?.trim() ?? "",
     role: body.role?.trim() ?? "",
+    salaryType: body.salaryType ?? "mensual",
     startDate: body.startDate ?? "",
     status: body.status ?? "activo",
   };
@@ -101,12 +110,14 @@ function employeeFromBody(body: EmployeeBody): Omit<HrEmployee, "id"> {
 
 function employeeToRow(employee: Omit<HrEmployee, "id">) {
   return {
+    daily_wage: employee.dailyWage,
     department: employee.department,
     document_number: employee.documentNumber || null,
     full_name: employee.fullName,
     monthly_salary: employee.monthlySalary,
     notes: employee.notes || null,
     role: employee.role || null,
+    salary_type: employee.salaryType,
     start_date: employee.startDate || null,
     status: employee.status,
   };
@@ -114,6 +125,7 @@ function employeeToRow(employee: Omit<HrEmployee, "id">) {
 
 function employeeFromRow(row: Record<string, unknown>): HrEmployee {
   return {
+    dailyWage: Number(row.daily_wage ?? 0),
     department: String(row.department ?? ""),
     documentNumber: String(row.document_number ?? ""),
     fullName: String(row.full_name ?? ""),
@@ -121,6 +133,7 @@ function employeeFromRow(row: Record<string, unknown>): HrEmployee {
     monthlySalary: Number(row.monthly_salary ?? 0),
     notes: String(row.notes ?? ""),
     role: String(row.role ?? ""),
+    salaryType: row.salary_type === "jornal" ? "jornal" : "mensual",
     startDate: String(row.start_date ?? ""),
     status:
       row.status === "licencia" || row.status === "inactivo"

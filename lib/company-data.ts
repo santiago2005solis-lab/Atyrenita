@@ -73,7 +73,9 @@ export type HrEmployee = {
   department: string;
   status: "activo" | "licencia" | "inactivo";
   startDate: string;
+  salaryType: "mensual" | "jornal";
   monthlySalary: number;
+  dailyWage: number;
   notes: string;
 };
 
@@ -424,7 +426,9 @@ export const demoHrEmployees: HrEmployee[] = [
     department: "Ganaderia",
     status: "activo",
     startDate: "2024-02-15",
+    salaryType: "mensual",
     monthlySalary: 5200000,
+    dailyWage: 0,
     notes: "Responsable de recorridas y novedades",
   },
   {
@@ -435,7 +439,9 @@ export const demoHrEmployees: HrEmployee[] = [
     department: "Administracion",
     status: "activo",
     startDate: "2025-03-01",
+    salaryType: "mensual",
     monthlySalary: 4300000,
+    dailyWage: 0,
     notes: "Control documental y archivo",
   },
 ];

@@ -16,6 +16,7 @@ type HrBlockId =
   | "reportes";
 
 type EmployeeForm = {
+  dailyWage: string;
   department: string;
   documentNumber: string;
   fullName: string;
@@ -23,6 +24,7 @@ type EmployeeForm = {
   monthlySalary: string;
   notes: string;
   role: string;
+  salaryType: HrEmployee["salaryType"];
   startDate: string;
   status: HrEmployee["status"];
 };
@@ -55,6 +57,7 @@ const baseSectors = [
 ];
 
 const emptyEmployeeForm: EmployeeForm = {
+  dailyWage: "",
   department: "",
   documentNumber: "",
   fullName: "",
@@ -62,6 +65,7 @@ const emptyEmployeeForm: EmployeeForm = {
   monthlySalary: "",
   notes: "",
   role: "",
+  salaryType: "mensual",
   startDate: new Date().toISOString().slice(0, 10),
   status: "activo",
 };
@@ -93,7 +97,21 @@ export function HumanResourcesModule({
     [employees],
   );
   const payroll = useMemo(
-    () => activeEmployees.reduce((sum, employee) => sum + employee.monthlySalary, 0),
+    () =>
+      activeEmployees.reduce(
+        (sum, employee) =>
+          sum + (employee.salaryType === "mensual" ? employee.monthlySalary : 0),
+        0,
+      ),
+    [activeEmployees],
+  );
+  const dailyWages = useMemo(
+    () =>
+      activeEmployees.reduce(
+        (sum, employee) =>
+          sum + (employee.salaryType === "jornal" ? employee.dailyWage : 0),
+        0,
+      ),
     [activeEmployees],
   );
   const sectors = useMemo(
@@ -134,6 +152,7 @@ export function HumanResourcesModule({
     setEmployeeForm(
       employee
         ? {
+            dailyWage: String(employee.dailyWage),
             department: employee.department,
             documentNumber: employee.documentNumber,
             fullName: employee.fullName,
@@ -141,6 +160,7 @@ export function HumanResourcesModule({
             monthlySalary: String(employee.monthlySalary),
             notes: employee.notes,
             role: employee.role,
+            salaryType: employee.salaryType,
             startDate: employee.startDate,
             status: employee.status,
           }
@@ -159,6 +179,7 @@ export function HumanResourcesModule({
       const response = await fetch("/api/hr/employees", {
         body: JSON.stringify({
           ...employeeForm,
+          dailyWage: Number(employeeForm.dailyWage),
           monthlySalary: Number(employeeForm.monthlySalary),
         }),
         headers: { "Content-Type": "application/json" },
@@ -344,8 +365,8 @@ export function HumanResourcesModule({
             title="Salarios y anticipos"
           />
           <div className="kpi-grid hr-kpi-grid">
-            <HrKpi label="Salarios base" value={money(payroll)} />
-            <HrKpi label="Horas extras" value={money(0)} />
+            <HrKpi label="Salarios mensuales" value={money(payroll)} />
+            <HrKpi label="Jornales diarios" value={money(dailyWages)} />
             <HrKpi label="Anticipos" tone="warning" value={money(0)} />
             <HrKpi label="Saldo restante" tone="blue" value={money(payroll)} />
           </div>
@@ -355,7 +376,8 @@ export function HumanResourcesModule({
                 <tr>
                   <th>Funcionario</th>
                   <th>Sector</th>
-                  <th>Salario</th>
+                  <th>Modalidad</th>
+                  <th>Base salarial</th>
                   <th>Horas extras</th>
                   <th>Anticipos</th>
                   <th>Descuentos</th>
@@ -367,11 +389,16 @@ export function HumanResourcesModule({
                   <tr key={employee.id}>
                     <td><strong>{employee.fullName}</strong></td>
                     <td>{employee.department || "Sin sector"}</td>
-                    <td>{money(employee.monthlySalary)}</td>
+                    <td>{salaryTypeLabel(employee.salaryType)}</td>
+                    <td>{salaryDisplay(employee, money)}</td>
                     <td>{money(0)}</td>
                     <td>{money(0)}</td>
                     <td>{money(0)}</td>
-                    <td className="positive-amount">{money(employee.monthlySalary)}</td>
+                    <td className="positive-amount">
+                      {employee.salaryType === "mensual"
+                        ? money(employee.monthlySalary)
+                        : "Pendiente de asistencia"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -596,19 +623,51 @@ export function HumanResourcesModule({
                     />
                   </label>
                   <label>
-                    Salario mensual
-                    <input
-                      min="0"
+                    Modalidad salarial
+                    <select
                       onChange={(event) =>
                         setEmployeeForm((current) => ({
                           ...current,
-                          monthlySalary: event.target.value,
+                          salaryType: event.target.value as HrEmployee["salaryType"],
                         }))
                       }
-                      type="number"
-                      value={employeeForm.monthlySalary}
-                    />
+                      value={employeeForm.salaryType}
+                    >
+                      <option value="mensual">Salario mensual</option>
+                      <option value="jornal">Pago por jornal</option>
+                    </select>
                   </label>
+                  {employeeForm.salaryType === "mensual" ? (
+                    <label>
+                      Salario mensual
+                      <input
+                        min="0"
+                        onChange={(event) =>
+                          setEmployeeForm((current) => ({
+                            ...current,
+                            monthlySalary: event.target.value,
+                          }))
+                        }
+                        type="number"
+                        value={employeeForm.monthlySalary}
+                      />
+                    </label>
+                  ) : (
+                    <label>
+                      Valor del jornal
+                      <input
+                        min="0"
+                        onChange={(event) =>
+                          setEmployeeForm((current) => ({
+                            ...current,
+                            dailyWage: event.target.value,
+                          }))
+                        }
+                        type="number"
+                        value={employeeForm.dailyWage}
+                      />
+                    </label>
+                  )}
                   <label className="hr-span-2">
                     Observaciones
                     <textarea
@@ -729,7 +788,8 @@ function HrSummary({
               <tr>
                 <th>Funcionario</th>
                 <th>Sector</th>
-                <th>Salario</th>
+                <th>Modalidad</th>
+                <th>Base salarial</th>
                 <th>Extras</th>
                 <th>Anticipos</th>
                 <th>Descuentos</th>
@@ -741,11 +801,16 @@ function HrSummary({
                 <tr key={employee.id}>
                   <td><strong>{employee.fullName}</strong></td>
                   <td>{employee.department || "Sin sector"}</td>
-                  <td>{money(employee.monthlySalary)}</td>
+                  <td>{salaryTypeLabel(employee.salaryType)}</td>
+                  <td>{salaryDisplay(employee, money)}</td>
                   <td>{money(0)}</td>
                   <td>{money(0)}</td>
                   <td>{money(0)}</td>
-                  <td className="positive-amount">{money(employee.monthlySalary)}</td>
+                  <td className="positive-amount">
+                    {employee.salaryType === "mensual"
+                      ? money(employee.monthlySalary)
+                      : "Pendiente de asistencia"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -777,7 +842,8 @@ function EmployeeTable({
             <th>Sector</th>
             <th>Cargo</th>
             <th>Ingreso</th>
-            <th>Salario</th>
+            <th>Modalidad</th>
+            <th>Salario / jornal</th>
             <th>Estado</th>
             {canEdit && <th>Acciones</th>}
           </tr>
@@ -791,7 +857,8 @@ function EmployeeTable({
                 <td>{employee.department || "Sin sector"}</td>
                 <td>{employee.role || "-"}</td>
                 <td>{formatDate(employee.startDate)}</td>
-                <td>{money(employee.monthlySalary)}</td>
+                <td>{salaryTypeLabel(employee.salaryType)}</td>
+                <td>{salaryDisplay(employee, money)}</td>
                 <td>
                   <span className={`hr-status ${employee.status}`}>
                     {statusLabel(employee.status)}
@@ -812,7 +879,7 @@ function EmployeeTable({
             ))
           ) : (
             <tr>
-              <td className="hr-empty-cell" colSpan={canEdit ? 8 : 7}>
+              <td className="hr-empty-cell" colSpan={canEdit ? 9 : 8}>
                 No hay funcionarios para los filtros seleccionados.
               </td>
             </tr>
@@ -903,4 +970,17 @@ function statusLabel(status: HrEmployee["status"]) {
   if (status === "activo") return "Activo";
   if (status === "licencia") return "Licencia";
   return "Inactivo";
+}
+
+function salaryTypeLabel(salaryType: HrEmployee["salaryType"]) {
+  return salaryType === "jornal" ? "Jornal" : "Mensual";
+}
+
+function salaryDisplay(
+  employee: HrEmployee,
+  money: (value: number) => string,
+) {
+  return employee.salaryType === "jornal"
+    ? `${money(employee.dailyWage)} / dia`
+    : `${money(employee.monthlySalary)} / mes`;
 }

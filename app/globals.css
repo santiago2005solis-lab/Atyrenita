@@ -30,12 +30,15 @@
 }
 
 html {
+  max-width: 100%;
   background: var(--background);
 }
 
 body {
   min-height: 100vh;
+  max-width: 100%;
   margin: 0;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family:
@@ -66,6 +69,7 @@ select {
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
+  min-width: 0;
   min-height: 100vh;
 }
 
@@ -116,6 +120,10 @@ select {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.brand-block > div:last-child {
+  min-width: 0;
 }
 
 .brand-mark {
@@ -180,6 +188,7 @@ h4 {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 10px 12px;
   border: 1px solid transparent;
@@ -188,6 +197,7 @@ h4 {
   color: var(--muted);
   font-weight: 700;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .nav-tabs button span {
@@ -560,6 +570,7 @@ button:disabled {
 
 .finance-block-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   min-width: 0;
   gap: 6px;
@@ -594,6 +605,7 @@ button:disabled {
   color: var(--muted);
   font-size: 0.65rem;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .finance-block-tabs button.active {
@@ -610,6 +622,7 @@ button:disabled {
 
 .finance-summary-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: 16px;
@@ -750,6 +763,7 @@ button:disabled {
 
 .panel-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
@@ -825,6 +839,7 @@ button:disabled {
 .account-row,
 .report-card {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -890,6 +905,12 @@ button:disabled {
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
   background: #fbfcfb;
+}
+
+.movement-toolbar > *,
+.field-row > *,
+.report-controls > * {
+  min-width: 0;
 }
 
 .movement-search input {
@@ -1089,6 +1110,7 @@ select:focus {
 
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -1109,7 +1131,9 @@ select:focus {
 
 .table-wrap {
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .movement-table-wrap {
@@ -1624,6 +1648,30 @@ th:last-child {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .dashboard-grid,
+  .cashbox-grid,
+  .warehouse-grid,
+  .roadmap-grid,
+  .flow-chart,
+  .report-controls,
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .movement-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .movement-toolbar label:nth-of-type(5),
+  .clear-filters {
+    grid-row: auto;
+  }
+
+  .finance-block-tabs {
+    padding-bottom: 5px;
+    scrollbar-width: thin;
+  }
+
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
@@ -1643,6 +1691,30 @@ th:last-child {
 
   .workflow-panel {
     position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .nav-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finance-summary-heading {
+    display: grid;
+  }
+
+  .finance-summary-heading label {
+    width: 100%;
+  }
+
+  .account-row,
+  .report-card {
+    align-items: flex-start;
+  }
+
+  .report-card > strong,
+  .account-row > strong {
+    margin-left: auto;
   }
 }
 
@@ -1702,5 +1774,39 @@ th:last-child {
 
   .kpi-card {
     min-height: 118px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar,
+  .workspace {
+    padding: 12px;
+  }
+
+  .nav-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .panel,
+  .movement-entry-panel {
+    padding: 14px;
+  }
+
+  .movement-ledger-heading,
+  .movement-toolbar {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .finance-block-navigation {
+    padding: 6px;
+  }
+
+  .topbar {
+    gap: 10px;
+  }
+
+  .topbar h2 {
+    font-size: 1.4rem;
   }
 }

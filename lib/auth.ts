@@ -76,6 +76,37 @@ export async function loginWithPassword(email: string, password: string) {
   return { session, user };
 }
 
+export async function refreshSession(refreshToken: string) {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAuthKey();
+
+  if (!url || !key) {
+    throw new Error("Supabase Auth no esta configurado.");
+  }
+
+  const response = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
+    body: JSON.stringify({ refresh_token: refreshToken }),
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("La sesion vencio. Ingrese nuevamente.");
+  }
+
+  const session = (await response.json()) as TokenResponse;
+  if (!session.access_token || !session.user?.id) {
+    throw new Error("Supabase no devolvio una sesion renovada valida.");
+  }
+
+  const user = await getOrCreateAppUser(session.user);
+  return { session, user };
+}
+
 export async function requireAppUser(
   request: NextRequest,
   moduleName?: AppModule,

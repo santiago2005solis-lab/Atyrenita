@@ -188,11 +188,23 @@ export default function AppPage() {
 
     async function loadInitialData() {
       try {
-        const response = await fetch("/api/bootstrap", { cache: "no-store" });
+        let response = await fetch("/api/bootstrap", { cache: "no-store" });
         if (response.status === 401) {
-          window.location.href = "/login";
+          const refreshResponse = await fetch("/api/auth/refresh", {
+            method: "POST",
+          });
+
+          if (refreshResponse.ok) {
+            response = await fetch("/api/bootstrap", { cache: "no-store" });
+          }
+        }
+
+        if (response.status === 401) {
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.replace("/login");
           return;
         }
+
         const payload = (await response.json()) as AppData;
         if (!response.ok) {
           throw new Error(payload.storageError ?? "No se pudo cargar el sistema.");
@@ -673,7 +685,7 @@ export default function AppPage() {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    window.location.replace("/login");
   }
 
   return (

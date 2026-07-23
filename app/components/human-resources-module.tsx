@@ -27,6 +27,8 @@ type HrBlockId =
   | "reportes"
   | "respaldo";
 
+type HrReportId = "nomina" | "asistencia" | "novedades" | "dotacion";
+
 type EmployeeForm = {
   dailyWage: string;
   department: string;
@@ -53,6 +55,33 @@ const hrBlocks: Array<{ id: HrBlockId; label: string }> = [
   { id: "consultas", label: "Consultas" },
   { id: "reportes", label: "Reportes" },
   { id: "respaldo", label: "Importar respaldo" },
+];
+
+const hrReports: Array<{
+  description: string;
+  id: HrReportId;
+  label: string;
+}> = [
+  {
+    description: "Liquidacion, anticipos, descuentos y saldo por funcionario.",
+    id: "nomina",
+    label: "Nomina",
+  },
+  {
+    description: "Presentismo, ausencias, horas trabajadas y horas extras.",
+    id: "asistencia",
+    label: "Asistencia",
+  },
+  {
+    description: "Permisos, licencias, novedades y descuentos asociados.",
+    id: "novedades",
+    label: "Novedades",
+  },
+  {
+    description: "Composicion actual del personal por sector y modalidad.",
+    id: "dotacion",
+    label: "Dotacion",
+  },
 ];
 
 const baseSectors = [
@@ -141,15 +170,6 @@ export function HumanResourcesModule({
   const activeEmployees = useMemo(
     () => employees.filter((employee) => employee.status === "activo"),
     [employees],
-  );
-  const payroll = useMemo(
-    () =>
-      activeEmployees.reduce(
-        (sum, employee) =>
-          sum + (employee.salaryType === "mensual" ? employee.monthlySalary : 0),
-        0,
-      ),
-    [activeEmployees],
   );
   const sectorRecords = useMemo(
     () =>
@@ -560,28 +580,14 @@ export function HumanResourcesModule({
       )}
 
       {activeBlock === "reportes" && (
-        <section className="panel hr-report">
-          <HrSectionHeading
-            action={
-              <button
-                className="secondary-button"
-                onClick={() => window.print()}
-                type="button"
-              >
-                Imprimir / Guardar PDF
-              </button>
-            }
-            eyebrow="Informes"
-            title="Detalle de funcionarios"
-          />
-          <div className="kpi-grid hr-kpi-grid">
-            <HrKpi label="Funcionarios" value={String(employees.length)} />
-            <HrKpi label="Activos" value={String(activeEmployees.length)} />
-            <HrKpi label="Sectores" tone="blue" value={String(sectors.length)} />
-            <HrKpi label="Nomina" tone="warning" value={money(payroll)} />
-          </div>
-          <EmployeeTable employees={employees} money={money} />
-        </section>
+        <HrReports
+          data={hrData}
+          employees={employees}
+          money={money}
+          sectors={sectors}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+        />
       )}
 
       {activeBlock === "cambios" && (
@@ -949,6 +955,486 @@ export function HumanResourcesModule({
   );
 }
 
+function HrReports({
+  data,
+  employees,
+  money,
+  sectors,
+  selectedMonth,
+  setSelectedMonth,
+}: {
+  data: HrData;
+  employees: HrEmployee[];
+  money: (value: number) => string;
+  sectors: string[];
+  selectedMonth: string;
+  setSelectedMonth: (value: string) => void;
+}) {
+  const [reportId, setReportId] = useState<HrReportId>("nomina");
+  const [sector, setSector] = useState("Todos");
+  const [status, setStatus] = useState("activo");
+  const [search, setSearch] = useState("");
+
+  const filteredEmployees = useMemo(() => {
+    const normalizedSearch = normalizeText(search.trim());
+    return employees
+      .filter((employee) => {
+        const matchesSector =
+          sector === "Todos" || employee.department === sector;
+        const matchesStatus =
+          status === "Todos" || employee.status === status;
+        const matchesSearch =
+          !normalizedSearch ||
+          normalizeText(
+            [
+              employee.fullName,
+              employee.documentNumber,
+              employee.role,
+              employee.department,
+            ].join(" "),
+          ).includes(normalizedSearch);
+        return matchesSector && matchesStatus && matchesSearch;
+      })
+      .sort((first, second) => first.fullName.localeCompare(second.fullName));
+  }, [employees, search, sector, status]);
+
+  const report = useMemo(() => {
+    const employeeIds = new Set(filteredEmployees.map((employee) => employee.id));
+
+    if (reportId === "asistencia") {
+      const attendance = data.attendance.filter(
+        (record) =>
+          record.attendanceDate.startsWith(selectedMonth) &&
+          employeeIds.has(record.employeeId),
+      );
+      const rows = filteredEmployees
+        .map((employee) => {
+          const records = attendance.filter(
+            (record) => record.employeeId === employee.id,
+          );
+          const present = records.filter((record) =>
+            normalizeText(record.status).includes("presente"),
+          ).length;
+          const absent = records.filter((record) =>
+            normalizeText(record.status).includes("ausente"),
+          ).length;
+          const hours = records.reduce(
+            (sum, record) => sum + Number(workedHours(record)),
+            0,
+          );
+          const extraHours = records.reduce(
+            (sum, record) => sum + record.extraHours,
+            0,
+          );
+          return {
+            employee,
+            records: records.length,
+            row: [
+              employee.fullName,
+              employee.department || "Sin sector",
+              records.length,
+              present,
+              absent,
+              decimal(hours),
+              decimal(extraHours),
+            ],
+          };
+        })
+        .filter((summary) => summary.records > 0);
+      const present = attendance.filter((record) =>
+        normalizeText(record.status).includes("presente"),
+      ).length;
+      const absent = attendance.filter((record) =>
+        normalizeText(record.status).includes("ausente"),
+      ).length;
+      const extraHours = attendance.reduce(
+        (sum, record) => sum + record.extraHours,
+        0,
+      );
+
+      return {
+        columns: [
+          "Funcionario",
+          "Sector",
+          "Registros",
+          "Presentes",
+          "Ausentes",
+          "Horas",
+          "Horas extra",
+        ],
+        description: hrReports.find((item) => item.id === reportId)!.description,
+        kpis: [
+          { label: "Funcionarios con registro", value: String(rows.length) },
+          { label: "Dias presentes", value: String(present) },
+          { label: "Ausencias", tone: "warning" as const, value: String(absent) },
+          {
+            label: "Horas extra",
+            tone: "blue" as const,
+            value: decimal(extraHours),
+          },
+        ],
+        rows: rows.map((summary) => summary.row),
+        title: "Resumen de asistencia",
+      };
+    }
+
+    if (reportId === "novedades") {
+      const events = data.events.filter(
+        (event) =>
+          event.dateFrom.startsWith(selectedMonth) &&
+          employeeIds.has(event.employeeId),
+      );
+      const approved = events.filter((event) =>
+        normalizeText(event.status).includes("aprob"),
+      ).length;
+      const pending = events.filter((event) =>
+        normalizeText(event.status).includes("pend"),
+      ).length;
+      const discounts = events.reduce((sum, event) => sum + event.discount, 0);
+
+      return {
+        columns: [
+          "Periodo",
+          "Funcionario",
+          "Sector",
+          "Tipo",
+          "Estado",
+          "Dias",
+          "Horas",
+          "Descuento",
+        ],
+        description: hrReports.find((item) => item.id === reportId)!.description,
+        kpis: [
+          { label: "Novedades", value: String(events.length) },
+          { label: "Aprobadas", value: String(approved) },
+          { label: "Pendientes", tone: "warning" as const, value: String(pending) },
+          {
+            label: "Descuentos",
+            tone: "blue" as const,
+            value: money(discounts),
+          },
+        ],
+        rows: events.map((event) => [
+          `${formatDate(event.dateFrom)}${
+            event.dateTo && event.dateTo !== event.dateFrom
+              ? ` - ${formatDate(event.dateTo)}`
+              : ""
+          }`,
+          employeeName(event.employeeId, employees),
+          employeeSector(event.employeeId, employees),
+          event.eventType,
+          event.status,
+          eventDays(event.dateFrom, event.dateTo),
+          decimal(event.hours),
+          money(event.discount),
+        ]),
+        title: "Permisos y novedades",
+      };
+    }
+
+    if (reportId === "dotacion") {
+      const active = filteredEmployees.filter(
+        (employee) => employee.status === "activo",
+      ).length;
+      const monthly = filteredEmployees.filter(
+        (employee) => employee.salaryType === "mensual",
+      ).length;
+      const daily = filteredEmployees.filter(
+        (employee) => employee.salaryType === "jornal",
+      ).length;
+      const representedSectors = new Set(
+        filteredEmployees
+          .map((employee) => employee.department)
+          .filter(Boolean),
+      ).size;
+
+      return {
+        columns: [
+          "Funcionario",
+          "C.I.",
+          "Sector",
+          "Cargo",
+          "Ingreso",
+          "Modalidad",
+          "Salario / jornal",
+          "Estado",
+        ],
+        description: hrReports.find((item) => item.id === reportId)!.description,
+        kpis: [
+          { label: "Funcionarios", value: String(filteredEmployees.length) },
+          { label: "Activos", value: String(active) },
+          {
+            label: "Mensuales / jornales",
+            tone: "warning" as const,
+            value: `${monthly} / ${daily}`,
+          },
+          {
+            label: "Sectores",
+            tone: "blue" as const,
+            value: String(representedSectors),
+          },
+        ],
+        rows: filteredEmployees.map((employee) => [
+          employee.fullName,
+          employee.documentNumber || "-",
+          employee.department || "Sin sector",
+          employee.role || "-",
+          formatDate(employee.startDate),
+          salaryTypeLabel(employee.salaryType),
+          salaryDisplay(employee, money),
+          statusLabel(employee.status),
+        ]),
+        title: "Dotacion de personal",
+      };
+    }
+
+    const payrollRows = filteredEmployees.map((employee) => ({
+      calculation: calculateEmployeePayroll(employee, selectedMonth, data),
+      employee,
+    }));
+    const totals = payrollRows.reduce(
+      (summary, row) => ({
+        advances: summary.advances + row.calculation.advances,
+        balance: summary.balance + row.calculation.balance,
+        base: summary.base + row.calculation.base,
+        discounts: summary.discounts + row.calculation.discounts,
+        extras: summary.extras + row.calculation.extras,
+      }),
+      { advances: 0, balance: 0, base: 0, discounts: 0, extras: 0 },
+    );
+
+    return {
+      columns: [
+        "Funcionario",
+        "Sector",
+        "Modalidad",
+        "Base",
+        "Extras",
+        "Anticipos",
+        "Descuentos",
+        "Saldo",
+      ],
+      description: hrReports.find((item) => item.id === reportId)!.description,
+      kpis: [
+        { label: "Base salarial", value: money(totals.base) },
+        { label: "Anticipos", tone: "warning" as const, value: money(totals.advances) },
+        { label: "Descuentos", tone: "warning" as const, value: money(totals.discounts) },
+        { label: "Saldo a pagar", tone: "blue" as const, value: money(totals.balance) },
+      ],
+      rows: payrollRows.map(({ calculation, employee }) => [
+        employee.fullName,
+        employee.department || "Sin sector",
+        salaryTypeLabel(employee.salaryType),
+        money(calculation.base),
+        money(calculation.extras),
+        money(calculation.advances),
+        money(calculation.discounts),
+        money(calculation.balance),
+      ]),
+      title: "Liquidacion de nomina",
+    };
+  }, [
+    data,
+    employees,
+    filteredEmployees,
+    money,
+    reportId,
+    selectedMonth,
+  ]);
+
+  const sectorDistribution = useMemo(
+    () =>
+      sectors
+        .map((name) => ({
+          count: filteredEmployees.filter(
+            (employee) => employee.department === name,
+          ).length,
+          name,
+        }))
+        .filter((item) => item.count > 0)
+        .sort((first, second) => second.count - first.count),
+    [filteredEmployees, sectors],
+  );
+  const largestSector = Math.max(
+    1,
+    ...sectorDistribution.map((item) => item.count),
+  );
+
+  function resetFilters() {
+    setSector("Todos");
+    setStatus("activo");
+    setSearch("");
+  }
+
+  function exportCsv() {
+    downloadCsv(
+      `rrhh-${reportId}-${selectedMonth}.csv`,
+      report.columns,
+      report.rows,
+    );
+  }
+
+  return (
+    <section className="panel hr-report">
+      <HrSectionHeading
+        action={
+          <div className="hr-report-actions">
+            <button
+              className="secondary-button"
+              disabled={!report.rows.length}
+              onClick={exportCsv}
+              type="button"
+            >
+              Descargar CSV
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!report.rows.length}
+              onClick={() => window.print()}
+              type="button"
+            >
+              Imprimir / PDF
+            </button>
+          </div>
+        }
+        eyebrow="Informes"
+        title="Reportes de Recursos Humanos"
+      />
+
+      <div className="hr-report-types" role="tablist" aria-label="Tipo de reporte">
+        {hrReports.map((item) => (
+          <button
+            aria-selected={reportId === item.id}
+            className={reportId === item.id ? "active" : ""}
+            key={item.id}
+            onClick={() => setReportId(item.id)}
+            role="tab"
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="hr-report-filters">
+        <label>
+          Mes
+          <input
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            type="month"
+            value={selectedMonth}
+          />
+        </label>
+        <label>
+          Sector
+          <select
+            onChange={(event) => setSector(event.target.value)}
+            value={sector}
+          >
+            <option>Todos</option>
+            {sectors.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Estado laboral
+          <select
+            onChange={(event) => setStatus(event.target.value)}
+            value={status}
+          >
+            <option value="Todos">Todos</option>
+            <option value="activo">Activo</option>
+            <option value="licencia">Licencia</option>
+            <option value="inactivo">Inactivo</option>
+          </select>
+        </label>
+        <label className="hr-report-search">
+          Funcionario
+          <input
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Nombre, C.I. o cargo"
+            value={search}
+          />
+        </label>
+        <button
+          className="secondary-button hr-report-clear"
+          onClick={resetFilters}
+          type="button"
+        >
+          Limpiar
+        </button>
+      </div>
+
+      <div className="hr-report-document-heading">
+        <div>
+          <span>Atyrenita SG | Recursos Humanos</span>
+          <h3>{report.title}</h3>
+          <p>{report.description}</p>
+        </div>
+        <dl>
+          <div>
+            <dt>Periodo</dt>
+            <dd>{monthLabel(selectedMonth)}</dd>
+          </div>
+          <div>
+            <dt>Sector</dt>
+            <dd>{sector}</dd>
+          </div>
+          <div>
+            <dt>Registros</dt>
+            <dd>{report.rows.length}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="kpi-grid hr-kpi-grid hr-report-kpis">
+        {report.kpis.map((kpi) => (
+          <HrKpi
+            key={kpi.label}
+            label={kpi.label}
+            tone={kpi.tone}
+            value={kpi.value}
+          />
+        ))}
+      </div>
+
+      <HrRecordsTable columns={report.columns} rows={report.rows} />
+
+      <section className="hr-report-breakdown">
+        <div className="hr-report-breakdown-heading">
+          <div>
+            <p className="eyebrow">Distribucion</p>
+            <h3>Funcionarios incluidos por sector</h3>
+          </div>
+          <span>{filteredEmployees.length} funcionarios</span>
+        </div>
+        <div className="hr-report-sector-list">
+          {sectorDistribution.length ? (
+            sectorDistribution.map((item) => (
+              <div className="hr-report-sector-row" key={item.name}>
+                <span>{item.name}</span>
+                <div aria-hidden="true">
+                  <i
+                    style={{
+                      width: `${Math.max(6, (item.count / largestSector) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <strong>{item.count}</strong>
+              </div>
+            ))
+          ) : (
+            <p className="hr-report-empty">
+              No hay funcionarios para los filtros seleccionados.
+            </p>
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
 function HrSummary({
   activeEmployees,
   data,
@@ -1270,6 +1756,53 @@ function salaryDisplay(
   return employee.salaryType === "jornal"
     ? `${money(employee.dailyWage)} / dia`
     : `${money(employee.monthlySalary)} / mes`;
+}
+
+function decimal(value: number) {
+  return value.toLocaleString("es-PY", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  });
+}
+
+function monthLabel(value: string) {
+  if (!value) return "-";
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return value;
+  const label = new Intl.DateTimeFormat("es-PY", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function downloadCsv(
+  fileName: string,
+  columns: string[],
+  rows: ReactNode[][],
+) {
+  const csvRows = [columns, ...rows].map((row) =>
+    row.map((cell) => csvCell(cell)).join(";"),
+  );
+  const blob = new Blob([`\uFEFF${csvRows.join("\r\n")}`], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: ReactNode) {
+  const text =
+    typeof value === "string" || typeof value === "number"
+      ? String(value)
+      : "";
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 async function requestHrData(): Promise<HrData> {

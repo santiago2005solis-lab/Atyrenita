@@ -1607,13 +1607,7 @@ th:last-child {
 
 @media (min-width: 1121px) {
   .app-shell {
-    width: 125%;
-    min-height: 125vh;
     zoom: 80%;
-  }
-
-  .sidebar {
-    height: 125vh;
   }
 }
 

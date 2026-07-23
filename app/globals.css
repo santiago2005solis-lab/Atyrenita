@@ -1117,12 +1117,12 @@ select:focus {
 }
 
 .movement-table {
-  min-width: 980px;
+  min-width: 1000px;
   table-layout: fixed;
 }
 
 .movement-table th:nth-child(1) {
-  width: 105px;
+  width: 125px;
 }
 
 .movement-table th:nth-child(2) {
@@ -1170,6 +1170,7 @@ select:focus {
 }
 
 .movement-table td:first-child {
+  font-size: 0.78rem;
   white-space: nowrap;
 }
 

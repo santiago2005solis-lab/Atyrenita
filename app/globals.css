@@ -547,7 +547,7 @@ button:disabled {
 .finance-block-tabs {
   display: flex;
   flex-wrap: nowrap;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -560,9 +560,9 @@ button:disabled {
 .finance-block-navigation {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 5px;
+  gap: 6px;
   margin-bottom: 14px;
-  padding: 7px 8px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
@@ -574,20 +574,20 @@ button:disabled {
   align-items: center;
   min-width: 0;
   gap: 6px;
-  padding-bottom: 5px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
 }
 
 .finance-block-status span {
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
 .finance-block-status strong {
   color: var(--green-dark);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
 }
 
 .finance-block-tabs-main {
@@ -597,13 +597,13 @@ button:disabled {
 
 .finance-block-tabs button {
   flex: 0 0 auto;
-  min-height: 29px;
-  padding: 0 5px;
+  min-height: 33px;
+  padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 900;
   white-space: nowrap;
 }

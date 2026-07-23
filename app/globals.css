@@ -537,7 +537,7 @@ button:disabled {
 .finance-block-tabs {
   display: flex;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
@@ -545,9 +545,8 @@ button:disabled {
 
 .finance-block-navigation {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
   margin-bottom: 14px;
   padding: 7px 8px;
   border: 1px solid var(--line);
@@ -556,11 +555,12 @@ button:disabled {
 }
 
 .finance-block-status {
-  display: grid;
-  min-width: 88px;
-  gap: 2px;
-  padding-right: 8px;
-  border-right: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
 }
 
 .finance-block-status span {
@@ -583,12 +583,12 @@ button:disabled {
 .finance-block-tabs button {
   flex: 0 0 auto;
   min-height: 29px;
-  padding: 0 7px;
+  padding: 0 5px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 900;
 }
 

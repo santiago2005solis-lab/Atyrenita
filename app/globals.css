@@ -1715,6 +1715,12 @@ th:last-child {
   gap: 14px;
 }
 
+.hr-report-print-header,
+.hr-report-signatures,
+.hr-report-print-footer {
+  display: none;
+}
+
 .hr-report .hr-section-heading {
   margin-bottom: 0;
 }
@@ -2248,7 +2254,23 @@ th:last-child {
   border-top: 1px solid var(--line);
 }
 
+@page hr-report {
+  size: A4 landscape;
+  margin: 11mm 10mm 13mm;
+}
+
 @media print {
+  html.hr-report-printing,
+  html.hr-report-printing body {
+    min-width: 0 !important;
+    background: white !important;
+  }
+
+  html.hr-report-printing * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .sidebar,
   .topbar,
   .hr-block-navigation,
@@ -2260,10 +2282,19 @@ th:last-child {
     display: none !important;
   }
 
+  .hr-report {
+    display: block;
+    page: hr-report;
+    color: #17251f;
+  }
+
   .app-shell,
   .workspace,
   .hr-module,
   .panel {
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
     width: 100%;
     padding: 0;
     border: 0;
@@ -2271,17 +2302,262 @@ th:last-child {
     zoom: 100%;
   }
 
+  .app-shell,
+  .workspace,
+  .hr-module {
+    display: block;
+  }
+
+  .hr-report-print-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12mm;
+    margin-bottom: 5mm;
+    padding-bottom: 3mm;
+    border-bottom: 1.5pt solid #287554;
+  }
+
+  .hr-report-print-brand {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+  }
+
+  .hr-report-print-brand > span {
+    display: grid;
+    width: 10mm;
+    height: 10mm;
+    place-items: center;
+    border-radius: 2mm;
+    background: #287554 !important;
+    color: white !important;
+    font-size: 10pt;
+    font-weight: 900;
+  }
+
+  .hr-report-print-brand > div,
+  .hr-report-print-meta {
+    display: grid;
+    gap: 0.6mm;
+  }
+
+  .hr-report-print-brand strong {
+    font-size: 12pt;
+  }
+
+  .hr-report-print-brand small,
+  .hr-report-print-meta span {
+    color: #58665f;
+    font-size: 7.5pt;
+  }
+
+  .hr-report-print-meta {
+    text-align: right;
+  }
+
+  .hr-report-print-meta strong {
+    color: #164f38;
+    font-size: 8pt;
+    text-transform: uppercase;
+  }
+
+  .hr-report > .hr-section-heading {
+    display: none;
+  }
+
   .hr-report-document-heading {
-    padding-top: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8mm;
+    margin-bottom: 4mm;
+    padding: 0;
+    break-after: avoid-page;
+  }
+
+  .hr-report-document-heading span {
+    font-size: 7pt;
+  }
+
+  .hr-report-document-heading h3 {
+    margin: 1mm 0 0.8mm;
+    font-size: 16pt;
+    line-height: 1.15;
+  }
+
+  .hr-report-document-heading p {
+    max-width: 150mm;
+    font-size: 8pt;
+  }
+
+  .hr-report-document-heading dl {
+    gap: 0;
+  }
+
+  .hr-report-document-heading dl > div {
+    min-width: 24mm;
+    padding: 0 3mm;
+  }
+
+  .hr-report-document-heading dt {
+    font-size: 6.5pt;
+  }
+
+  .hr-report-document-heading dd {
+    margin-top: 1mm;
+    font-size: 8pt;
+  }
+
+  .hr-report-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2.5mm;
+    margin: 0 0 4mm;
+    break-inside: avoid-page;
+  }
+
+  .hr-report-kpis .kpi-card {
+    min-height: 0;
+    padding: 3mm;
+    border: 0.5pt solid #ced9d3;
+    border-radius: 1.5mm;
+    background: #f6f9f7 !important;
+    box-shadow: none;
+  }
+
+  .hr-report-kpis .kpi-card.warning {
+    background: #fff8e8 !important;
+  }
+
+  .hr-report-kpis .kpi-card.blue {
+    background: #edf5fb !important;
+  }
+
+  .hr-report-kpis .kpi-card span {
+    font-size: 7pt;
+  }
+
+  .hr-report-kpis .kpi-card strong {
+    margin-top: 1.5mm;
+    font-size: 11pt;
   }
 
   .hr-report .hr-table {
     overflow: visible;
+    border: 0.5pt solid #c8d4ce;
+    border-radius: 0;
+    break-before: avoid-page;
   }
 
   .hr-report .hr-table table {
+    width: 100%;
     min-width: 0;
+    border-collapse: collapse;
+    font-size: 7.4pt;
+  }
+
+  .hr-report .hr-table thead {
+    display: table-header-group;
+  }
+
+  .hr-report .hr-table tr {
+    break-inside: avoid-page;
+  }
+
+  .hr-report .hr-table th {
+    padding: 2.2mm 1.8mm;
+    border-bottom: 0.75pt solid #9db2a7;
+    background: #e8f0ec !important;
+    color: #244337;
+    font-size: 6.5pt;
+    line-height: 1.2;
+  }
+
+  .hr-report .hr-table td {
+    padding: 2.1mm 1.8mm;
+    border-bottom: 0.4pt solid #d9e1dd;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  .hr-report .hr-table tbody tr:nth-child(even) td {
+    background: #fafcfb !important;
+  }
+
+  .hr-report-breakdown {
+    margin-top: 5mm;
+    padding-top: 3mm;
+    break-inside: avoid-page;
+  }
+
+  .hr-report-breakdown-heading h3 {
     font-size: 9pt;
+  }
+
+  .hr-report-sector-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5mm 5mm;
+  }
+
+  .hr-report-sector-row {
+    min-height: 5mm;
+    grid-template-columns: minmax(30mm, 0.9fr) minmax(18mm, 1fr) 6mm;
+    gap: 2mm;
+  }
+
+  .hr-report-sector-row > span,
+  .hr-report-sector-row strong {
+    font-size: 6.8pt;
+  }
+
+  .hr-report-sector-row > div {
+    height: 1.5mm;
+  }
+
+  .hr-report-signatures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14mm;
+    margin-top: 14mm;
+    padding-top: 4mm;
+    break-inside: avoid-page;
+  }
+
+  .hr-report-signatures > div {
+    display: grid;
+    justify-items: center;
+    gap: 1mm;
+    text-align: center;
+  }
+
+  .hr-report-signatures i {
+    display: block;
+    width: 100%;
+    margin-bottom: 1.5mm;
+    border-top: 0.6pt solid #5d6d65;
+  }
+
+  .hr-report-signatures strong {
+    font-size: 7.5pt;
+  }
+
+  .hr-report-signatures span {
+    color: #69766f;
+    font-size: 6.5pt;
+  }
+
+  .hr-report-print-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10mm;
+    margin-top: 7mm;
+    padding-top: 2.5mm;
+    border-top: 0.5pt solid #c8d4ce;
+    color: #69766f;
+    font-size: 6.5pt;
+    break-inside: avoid-page;
   }
 }
 

@@ -1274,8 +1274,36 @@ function HrReports({
     );
   }
 
+  function printReport() {
+    const previousTitle = document.title;
+    const root = document.documentElement;
+    const cleanup = () => {
+      root.classList.remove("hr-report-printing");
+      document.title = previousTitle;
+    };
+
+    root.classList.add("hr-report-printing");
+    document.title = `Atyrenita SG - ${report.title} - ${selectedMonth}`;
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.print();
+  }
+
   return (
     <section className="panel hr-report">
+      <header className="hr-report-print-header" aria-hidden="true">
+        <div className="hr-report-print-brand">
+          <span>SG</span>
+          <div>
+            <strong>Atyrenita SG</strong>
+            <small>Sistema de Gestion Empresarial</small>
+          </div>
+        </div>
+        <div className="hr-report-print-meta">
+          <span>Recursos Humanos</span>
+          <strong>Documento interno</strong>
+        </div>
+      </header>
+
       <HrSectionHeading
         action={
           <div className="hr-report-actions">
@@ -1290,7 +1318,7 @@ function HrReports({
             <button
               className="secondary-button"
               disabled={!report.rows.length}
-              onClick={() => window.print()}
+              onClick={printReport}
               type="button"
             >
               Imprimir / PDF
@@ -1382,6 +1410,10 @@ function HrReports({
             <dd>{sector}</dd>
           </div>
           <div>
+            <dt>Estado</dt>
+            <dd>{status === "Todos" ? "Todos" : statusLabel(status as HrEmployee["status"])}</dd>
+          </div>
+          <div>
             <dt>Registros</dt>
             <dd>{report.rows.length}</dd>
           </div>
@@ -1431,6 +1463,29 @@ function HrReports({
           )}
         </div>
       </section>
+
+      <section className="hr-report-signatures" aria-label="Firmas del reporte">
+        <div>
+          <i />
+          <strong>Elaborado por</strong>
+          <span>Nombre y firma</span>
+        </div>
+        <div>
+          <i />
+          <strong>Revisado por</strong>
+          <span>Nombre y firma</span>
+        </div>
+        <div>
+          <i />
+          <strong>Aprobado por</strong>
+          <span>Nombre y firma</span>
+        </div>
+      </section>
+
+      <footer className="hr-report-print-footer" aria-hidden="true">
+        <span>Documento generado por Atyrenita SG</span>
+        <span>{dateTimeLabel()}</span>
+      </footer>
     </section>
   );
 }
@@ -1774,6 +1829,13 @@ function monthLabel(value: string) {
     year: "numeric",
   }).format(new Date(year, month - 1, 1));
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function dateTimeLabel() {
+  return new Intl.DateTimeFormat("es-PY", {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date());
 }
 
 function downloadCsv(

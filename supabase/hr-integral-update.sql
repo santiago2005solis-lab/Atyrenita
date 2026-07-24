@@ -128,6 +128,10 @@ create table if not exists public.hr_documents (
   expiry_date date,
   reference text,
   file_name text,
+  file_path text,
+  file_size bigint not null default 0,
+  mime_type text,
+  uploaded_at timestamptz,
   notes text,
   created_at timestamptz not null default now()
 );
@@ -161,3 +165,30 @@ alter table public.hr_advances enable row level security;
 alter table public.hr_payroll enable row level security;
 alter table public.hr_documents enable row level security;
 alter table public.hr_consultations enable row level security;
+
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'hr-documents',
+  'hr-documents',
+  false,
+  4194304,
+  array[
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;

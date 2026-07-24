@@ -14,6 +14,7 @@ import {
   type HrSector,
 } from "@/lib/hr-data";
 import { HrAttendancePanel } from "@/app/components/hr-attendance-panel";
+import { HrDocumentsPanel } from "@/app/components/hr-documents-panel";
 import { HrEventsPanel } from "@/app/components/hr-events-panel";
 import { HrPayrollPanel } from "@/app/components/hr-payroll-panel";
 import { HrSectorsPanel } from "@/app/components/hr-sectors-panel";
@@ -631,25 +632,12 @@ export function HumanResourcesModule({
         />
       )}
       {activeBlock === "documentos" && (
-        <HrOperationalTable
-          columns={[
-            "Funcionario",
-            "Documento",
-            "Estado",
-            "Entrega",
-            "Vencimiento",
-            "Referencia",
-          ]}
-          eyebrow="Legajos"
-          rows={hrData.documents.map((document) => [
-            employeeName(document.employeeId, employees),
-            document.type,
-            documentStatus(document),
-            formatDate(document.deliveryDate),
-            formatDate(document.expiryDate),
-            document.reference || "-",
-          ])}
-          title="Documentos de ingreso"
+        <HrDocumentsPanel
+          canAdmin={canAdmin}
+          canEdit={canEdit}
+          documents={hrData.documents}
+          employees={employees}
+          onRefresh={refreshHrData}
         />
       )}
       {activeBlock === "consultas" && (
@@ -1912,17 +1900,6 @@ function eventDays(from: string, to: string) {
   const end = new Date(`${to || from}T12:00:00`);
   const difference = Math.floor((end.getTime() - start.getTime()) / 86_400_000);
   return String(Math.max(1, difference + 1));
-}
-
-function documentStatus(document: HrData["documents"][number]) {
-  if (
-    document.expiryDate &&
-    document.expiryDate < localDateValue() &&
-    !normalizeText(document.status).includes("venc")
-  ) {
-    return "Vencido";
-  }
-  return document.status || "Pendiente";
 }
 
 function normalizeText(value: string) {

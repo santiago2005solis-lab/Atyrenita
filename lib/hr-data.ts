@@ -89,11 +89,15 @@ export type HrDocument = {
   employeeId: string;
   expiryDate: string;
   fileName: string;
+  filePath: string;
+  fileSize: number;
   id: string;
+  mimeType: string;
   notes: string;
   reference: string;
   status: string;
   type: string;
+  uploadedAt: string;
 };
 
 export type HrConsultation = {

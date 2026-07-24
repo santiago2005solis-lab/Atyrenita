@@ -2352,6 +2352,193 @@ th:last-child {
   color: #805512;
 }
 
+.hr-documents-panel,
+.hr-documents-overview {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.hr-documents-overview > .hr-section-heading {
+  margin-bottom: 0;
+}
+
+.hr-document-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hr-document-kpis article {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 76px;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.hr-document-kpis article.warning {
+  background: var(--amber-soft);
+}
+
+.hr-document-kpis article.danger {
+  background: var(--red-soft);
+}
+
+.hr-document-kpis article.blue {
+  background: var(--blue-soft);
+}
+
+.hr-document-kpis span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hr-document-kpis strong {
+  font-size: 1.08rem;
+}
+
+.hr-document-filters {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.5fr) repeat(2, minmax(180px, 0.75fr)) auto;
+  align-items: end;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.hr-document-filters > * {
+  min-width: 0;
+}
+
+.hr-documents-table table {
+  min-width: 1450px;
+}
+
+.hr-documents-table td {
+  vertical-align: middle;
+}
+
+.hr-documents-table td small {
+  display: block;
+  max-width: 250px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-documents-table tr.is-archived td {
+  color: var(--muted);
+  opacity: 0.72;
+}
+
+.hr-document-status {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.hr-document-status.expiring {
+  background: var(--amber-soft);
+  color: #805512;
+}
+
+.hr-document-status.expired {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.hr-document-status.archived {
+  background: #edf0ee;
+  color: var(--muted);
+}
+
+.hr-document-missing {
+  color: var(--red);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.hr-document-row-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.hr-document-row-actions .hr-table-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hr-document-modal {
+  width: min(820px, 100%);
+}
+
+.hr-document-file-control input[type="file"] {
+  height: auto;
+  min-height: 42px;
+  padding: 7px;
+}
+
+.hr-document-file-control input[type="file"]::file-selector-button {
+  min-height: 28px;
+  margin-right: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.hr-document-file-control > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--green-dark);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.hr-document-note {
+  margin: 16px 0 0;
+  padding: 11px 12px;
+  border: 1px solid #cfe1d7;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .hr-events-panel,
 .hr-events-overview {
   display: grid;
@@ -3236,6 +3423,14 @@ th:last-child {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .hr-document-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-document-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hr-event-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3426,6 +3621,8 @@ th:last-child {
   .hr-quality-strip,
   .hr-attendance-daybar,
   .hr-attendance-filters,
+  .hr-document-filters,
+  .hr-document-kpis,
   .hr-event-filters,
   .hr-event-kpis,
   .hr-payroll-filters,

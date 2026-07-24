@@ -136,11 +136,15 @@ export function hrDocumentFromRow(row: Row): HrDocument {
     employeeId: stringValue(row.employee_id),
     expiryDate: stringValue(row.expiry_date),
     fileName: stringValue(row.file_name),
+    filePath: stringValue(row.file_path),
+    fileSize: numberValue(row.file_size),
     id: stringValue(row.id),
+    mimeType: stringValue(row.mime_type),
     notes: stringValue(row.notes),
     reference: stringValue(row.reference),
     status: stringValue(row.status),
     type: stringValue(row.document_type),
+    uploadedAt: stringValue(row.uploaded_at),
   };
 }
 

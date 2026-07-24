@@ -215,10 +215,14 @@ export async function POST(request: NextRequest) {
       employee_id: mappedEmployeeId(record.employeeId, employeeIdMap),
       expiry_date: nullableDate(record.expiryDate),
       file_name: nullableText(record.fileName),
+      file_path: nullableText(record.filePath),
+      file_size: numberValue(record.fileSize),
       id: requiredText(record.id),
+      mime_type: nullableText(record.mimeType),
       notes: nullableText(record.notes),
       reference: nullableText(record.reference),
       status: text(record.status) || "Pendiente",
+      uploaded_at: nullableText(record.uploadedAt),
     }));
     const consultationRows = records(backup.consultations).map((record) => ({
       consultation_date: requiredDate(record.date),

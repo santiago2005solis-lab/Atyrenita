@@ -46,7 +46,7 @@ export function calculateEmployeePayroll(
         event.employeeId === employee.id &&
         event.dateFrom.startsWith(month) &&
         normalizeText(event.eventType).includes("extra") &&
-        !normalizeText(event.status).includes("rechaz"),
+        normalizeText(event.status).includes("aprob"),
     )
     .reduce((sum, event) => sum + event.hours, 0);
   const extraHours = attendanceExtraHours + approvedExtraHours;
@@ -65,7 +65,7 @@ export function calculateEmployeePayroll(
       (event) =>
         event.employeeId === employee.id &&
         event.dateFrom.startsWith(month) &&
-        !normalizeText(event.status).includes("rechaz"),
+        normalizeText(event.status).includes("aprob"),
     )
     .reduce((sum, event) => sum + event.discount, 0);
   const discounts = eventDiscounts + (payroll?.otherDiscounts ?? 0);

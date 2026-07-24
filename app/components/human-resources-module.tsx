@@ -14,6 +14,7 @@ import {
   type HrSector,
 } from "@/lib/hr-data";
 import { HrAttendancePanel } from "@/app/components/hr-attendance-panel";
+import { HrEventsPanel } from "@/app/components/hr-events-panel";
 import { HrPayrollPanel } from "@/app/components/hr-payroll-panel";
 import { HrSectorsPanel } from "@/app/components/hr-sectors-panel";
 import { calculateEmployeePayroll } from "@/lib/hr-payroll";
@@ -617,35 +618,15 @@ export function HumanResourcesModule({
         />
       )}
       {activeBlock === "novedades" && (
-        <HrOperationalTable
-          columns={[
-            "Periodo",
-            "Funcionario",
-            "Tipo",
-            "Dias",
-            "Horas",
-            "Motivo",
-            "Estado",
-            "Descuento",
-          ]}
-          eyebrow="Gestion"
-          rows={hrData.events
-            .filter((event) => event.dateFrom.startsWith(selectedMonth))
-            .map((event) => [
-              `${formatDate(event.dateFrom)}${
-                event.dateTo && event.dateTo !== event.dateFrom
-                  ? ` - ${formatDate(event.dateTo)}`
-                  : ""
-              }`,
-              employeeName(event.employeeId, employees),
-              event.eventType,
-              eventDays(event.dateFrom, event.dateTo),
-              event.hours.toFixed(2),
-              event.reason || "-",
-              event.status,
-              money(event.discount),
-            ])}
-          title="Permisos y novedades"
+        <HrEventsPanel
+          canAdmin={canAdmin}
+          canEdit={canEdit}
+          employees={employees}
+          events={hrData.events}
+          money={money}
+          onRefresh={refreshHrData}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
         />
       )}
       {activeBlock === "documentos" && (
@@ -1061,7 +1042,11 @@ function HrReports({
       const pending = events.filter((event) =>
         normalizeText(event.status).includes("pend"),
       ).length;
-      const discounts = events.reduce((sum, event) => sum + event.discount, 0);
+      const discounts = events
+        .filter((event) =>
+          normalizeText(event.status).includes("aprob"),
+        )
+        .reduce((sum, event) => sum + event.discount, 0);
 
       return {
         columns: [

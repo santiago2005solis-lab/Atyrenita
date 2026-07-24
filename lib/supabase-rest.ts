@@ -49,6 +49,13 @@ export async function supabasePatch<T>(
   });
 }
 
+export async function supabaseDelete<T>(tableWithQuery: string): Promise<T> {
+  return supabaseRequest<T>(tableWithQuery, {
+    method: "DELETE",
+    prefer: "return=representation",
+  });
+}
+
 async function supabaseRequest<T>(
   path: string,
   init: SupabaseRequestInit,

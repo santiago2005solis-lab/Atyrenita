@@ -13,6 +13,8 @@ import {
   type HrData,
   type HrSector,
 } from "@/lib/hr-data";
+import { HrAttendancePanel } from "@/app/components/hr-attendance-panel";
+import { HrSectorsPanel } from "@/app/components/hr-sectors-panel";
 
 type HrBlockId =
   | "resumen"
@@ -28,6 +30,12 @@ type HrBlockId =
   | "respaldo";
 
 type HrReportId = "nomina" | "asistencia" | "novedades" | "dotacion";
+type EmployeeQualityFilter =
+  | "todos"
+  | "duplicados"
+  | "sin_ci"
+  | "sin_sector"
+  | "sin_salario";
 
 type EmployeeForm = {
   dailyWage: string;
@@ -135,6 +143,8 @@ export function HumanResourcesModule({
   const [query, setQuery] = useState("");
   const [sectorFilter, setSectorFilter] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
+  const [qualityFilter, setQualityFilter] =
+    useState<EmployeeQualityFilter>("todos");
   const [employeeForm, setEmployeeForm] = useState<EmployeeForm>(emptyEmployeeForm);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -195,6 +205,35 @@ export function HumanResourcesModule({
       ).sort((first, second) => first.localeCompare(second)),
     [employees, sectorRecords],
   );
+  const employeeQuality = useMemo(() => {
+    const grouped = new Map<string, HrEmployee[]>();
+    for (const employee of employees) {
+      const documentKey = employee.documentNumber
+        ? `document:${normalizeText(employee.documentNumber)}`
+        : "";
+      const nameKey = `name:${normalizeText(employee.fullName.trim())}`;
+      for (const key of [documentKey, nameKey].filter(Boolean)) {
+        grouped.set(key, [...(grouped.get(key) ?? []), employee]);
+      }
+    }
+    const duplicateIds = new Set<string>();
+    for (const group of grouped.values()) {
+      if (group.length > 1) {
+        group.forEach((employee) => duplicateIds.add(employee.id));
+      }
+    }
+    return {
+      duplicateIds,
+      missingDocument: employees.filter((employee) => !employee.documentNumber)
+        .length,
+      missingSalary: employees.filter((employee) =>
+        employee.salaryType === "jornal"
+          ? employee.dailyWage <= 0
+          : employee.monthlySalary <= 0,
+      ).length,
+      missingSector: employees.filter((employee) => !employee.department).length,
+    };
+  }, [employees]);
   const filteredEmployees = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return employees
@@ -214,10 +253,27 @@ export function HumanResourcesModule({
           sectorFilter === "Todos" || employee.department === sectorFilter;
         const matchesStatus =
           statusFilter === "Todos" || employee.status === statusFilter;
-        return matchesQuery && matchesSector && matchesStatus;
+        const matchesQuality =
+          qualityFilter === "todos" ||
+          (qualityFilter === "duplicados" &&
+            employeeQuality.duplicateIds.has(employee.id)) ||
+          (qualityFilter === "sin_ci" && !employee.documentNumber) ||
+          (qualityFilter === "sin_sector" && !employee.department) ||
+          (qualityFilter === "sin_salario" &&
+            (employee.salaryType === "jornal"
+              ? employee.dailyWage <= 0
+              : employee.monthlySalary <= 0));
+        return matchesQuery && matchesSector && matchesStatus && matchesQuality;
       })
       .sort((first, second) => first.fullName.localeCompare(second.fullName));
-  }, [employees, query, sectorFilter, statusFilter]);
+  }, [
+    employeeQuality.duplicateIds,
+    employees,
+    qualityFilter,
+    query,
+    sectorFilter,
+    statusFilter,
+  ]);
   const salaryRows = useMemo(
     () =>
       activeEmployees.map((employee) => ({
@@ -349,6 +405,13 @@ export function HumanResourcesModule({
     }
   }
 
+  async function refreshHrData() {
+    const nextData = await requestHrData();
+    setHrData(nextData);
+    setEmployees(nextData.employees);
+    setDataError("");
+  }
+
   return (
     <div className="hr-module">
       {dataError && <div className="status-banner warning">{dataError}</div>}
@@ -403,6 +466,56 @@ export function HumanResourcesModule({
             eyebrow="Legajos"
             title="Funcionarios"
           />
+          <div className="hr-quality-strip" aria-label="Calidad de los legajos">
+            <button
+              className={qualityFilter === "duplicados" ? "active" : ""}
+              onClick={() =>
+                setQualityFilter((current) =>
+                  current === "duplicados" ? "todos" : "duplicados",
+                )
+              }
+              type="button"
+            >
+              <span>Posibles duplicados</span>
+              <strong>{employeeQuality.duplicateIds.size}</strong>
+            </button>
+            <button
+              className={qualityFilter === "sin_ci" ? "active" : ""}
+              onClick={() =>
+                setQualityFilter((current) =>
+                  current === "sin_ci" ? "todos" : "sin_ci",
+                )
+              }
+              type="button"
+            >
+              <span>Sin C.I.</span>
+              <strong>{employeeQuality.missingDocument}</strong>
+            </button>
+            <button
+              className={qualityFilter === "sin_sector" ? "active" : ""}
+              onClick={() =>
+                setQualityFilter((current) =>
+                  current === "sin_sector" ? "todos" : "sin_sector",
+                )
+              }
+              type="button"
+            >
+              <span>Sin sector</span>
+              <strong>{employeeQuality.missingSector}</strong>
+            </button>
+            <button
+              className={qualityFilter === "sin_salario" ? "active" : ""}
+              onClick={() =>
+                setQualityFilter((current) =>
+                  current === "sin_salario" ? "todos" : "sin_salario",
+                )
+              }
+              type="button"
+            >
+              <span>Sin salario definido</span>
+              <strong>{employeeQuality.missingSalary}</strong>
+            </button>
+          </div>
           <div className="hr-filters">
             <label>
               Buscar
@@ -442,6 +555,7 @@ export function HumanResourcesModule({
                 setQuery("");
                 setSectorFilter("Todos");
                 setStatusFilter("Todos");
+                setQualityFilter("todos");
               }}
               type="button"
             >
@@ -458,35 +572,13 @@ export function HumanResourcesModule({
       )}
 
       {activeBlock === "sectores" && (
-        <section className="panel">
-          <HrSectionHeading eyebrow="Organizacion" title="Sectores y jefaturas" />
-          <div className="hr-sector-grid">
-            {sectorRecords.map((sector) => {
-              const assigned = activeEmployees.filter(
-                (employee) => employee.department === sector.name,
-              );
-              return (
-                <article className="hr-sector-card" key={sector.id}>
-                  <div>
-                    <span>Sector</span>
-                    <strong>{sector.name}</strong>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Jefe</dt>
-                      <dd>{sector.boss || "No definido"}</dd>
-                    </div>
-                    <div>
-                      <dt>Activos</dt>
-                      <dd>{assigned.length}</dd>
-                    </div>
-                  </dl>
-                  {sector.establishment && <small>{sector.establishment}</small>}
-                </article>
-              );
-            })}
-          </div>
-        </section>
+        <HrSectorsPanel
+          canAdmin={canAdmin}
+          canEdit={canEdit}
+          employees={employees}
+          onRefresh={refreshHrData}
+          sectors={sectorRecords}
+        />
       )}
 
       {activeBlock === "salarios" && (
@@ -613,37 +705,13 @@ export function HumanResourcesModule({
         />
       )}
       {activeBlock === "asistencia" && (
-        <HrOperationalTable
-          columns={[
-            "Fecha",
-            "Funcionario",
-            "Sector",
-            "Entrada",
-            "Almuerzo",
-            "Regreso",
-            "Salida",
-            "Horas",
-            "Extras",
-            "Estado",
-          ]}
-          eyebrow="Control diario"
-          rows={hrData.attendance
-            .filter((attendance) =>
-              attendance.attendanceDate.startsWith(selectedMonth),
-            )
-            .map((attendance) => [
-              formatDate(attendance.attendanceDate),
-              employeeName(attendance.employeeId, employees),
-              employeeSector(attendance.employeeId, employees),
-              attendance.entry || "-",
-              attendance.lunchOut || "-",
-              attendance.lunchIn || "-",
-              attendance.exit || "-",
-              workedHours(attendance),
-              attendance.extraHours.toFixed(2),
-              attendance.status,
-            ])}
-          title="Asistencia"
+        <HrAttendancePanel
+          attendance={hrData.attendance}
+          canEdit={canEdit}
+          employees={employees}
+          onRefresh={refreshHrData}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
         />
       )}
       {activeBlock === "novedades" && (

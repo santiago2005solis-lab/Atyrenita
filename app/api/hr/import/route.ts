@@ -18,6 +18,7 @@ type SourceBackup = {
   employees?: SourceRecord[];
   events?: SourceRecord[];
   payroll?: SourceRecord[];
+  payments?: SourceRecord[];
   sectors?: SourceRecord[];
   transfers?: SourceRecord[];
 };
@@ -196,6 +197,17 @@ export async function POST(request: NextRequest) {
       payroll_month: requiredText(record.month),
       salary: numberValue(record.salary),
     }));
+    const paymentRows = records(backup.payments).map((record) => ({
+      amount: numberValue(record.amount),
+      employee_id: mappedEmployeeId(record.employeeId, employeeIdMap),
+      id: requiredText(record.id),
+      method: nullableText(record.method),
+      notes: nullableText(record.notes),
+      payment_date: requiredDate(record.date),
+      payroll_month: requiredText(record.month),
+      reference: nullableText(record.reference),
+      status: record.status === "anulado" ? "anulado" : "confirmado",
+    }));
     const documentRows = records(backup.documents).map((record) => ({
       delivery_date: nullableDate(record.deliveryDate),
       document_type: requiredText(record.type),
@@ -224,6 +236,7 @@ export async function POST(request: NextRequest) {
       upsertRows("hr_events?on_conflict=id", eventRows),
       upsertRows("hr_advances?on_conflict=id", advanceRows),
       upsertRows("hr_payroll?on_conflict=id", payrollRows),
+      upsertRows("hr_salary_payments?on_conflict=id", paymentRows),
       upsertRows("hr_documents?on_conflict=id", documentRows),
       upsertRows("hr_consultations?on_conflict=id", consultationRows),
     ]);
@@ -237,6 +250,7 @@ export async function POST(request: NextRequest) {
         employees: employeeRows.length,
         events: eventRows.length,
         payroll: payrollRows.length,
+        payments: paymentRows.length,
         sectors: sectorRows.length,
         transfers: transferRows.length,
       },

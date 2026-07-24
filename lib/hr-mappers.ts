@@ -6,6 +6,7 @@ import type {
   HrDocument,
   HrEvent,
   HrPayroll,
+  HrSalaryPayment,
   HrSector,
   HrTransfer,
 } from "./hr-data";
@@ -97,6 +98,7 @@ export function hrAdvanceFromRow(row: Row): HrAdvance {
     method: stringValue(row.method),
     month: stringValue(row.payroll_month),
     reason: stringValue(row.reason),
+    status: row.status === "anulado" ? "anulado" : "activo",
   };
 }
 
@@ -110,6 +112,20 @@ export function hrPayrollFromRow(row: Row): HrPayroll {
     otherDiscounts: numberValue(row.other_discounts),
     otherIncome: numberValue(row.other_income),
     salary: numberValue(row.salary),
+  };
+}
+
+export function hrSalaryPaymentFromRow(row: Row): HrSalaryPayment {
+  return {
+    amount: numberValue(row.amount),
+    date: stringValue(row.payment_date),
+    employeeId: stringValue(row.employee_id),
+    id: stringValue(row.id),
+    method: stringValue(row.method),
+    month: stringValue(row.payroll_month),
+    notes: stringValue(row.notes),
+    reference: stringValue(row.reference),
+    status: row.status === "anulado" ? "anulado" : "confirmado",
   };
 }
 

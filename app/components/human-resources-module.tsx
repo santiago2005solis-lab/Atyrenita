@@ -14,7 +14,9 @@ import {
   type HrSector,
 } from "@/lib/hr-data";
 import { HrAttendancePanel } from "@/app/components/hr-attendance-panel";
+import { HrPayrollPanel } from "@/app/components/hr-payroll-panel";
 import { HrSectorsPanel } from "@/app/components/hr-sectors-panel";
+import { calculateEmployeePayroll } from "@/lib/hr-payroll";
 
 type HrBlockId =
   | "resumen"
@@ -274,28 +276,6 @@ export function HumanResourcesModule({
     sectorFilter,
     statusFilter,
   ]);
-  const salaryRows = useMemo(
-    () =>
-      activeEmployees.map((employee) => ({
-        calculation: calculateEmployeePayroll(employee, selectedMonth, hrData),
-        employee,
-      })),
-    [activeEmployees, hrData, selectedMonth],
-  );
-  const salaryTotals = useMemo(
-    () =>
-      salaryRows.reduce(
-        (totals, row) => ({
-          advances: totals.advances + row.calculation.advances,
-          base: totals.base + row.calculation.base,
-          balance: totals.balance + row.calculation.balance,
-          extras: totals.extras + row.calculation.extras,
-        }),
-        { advances: 0, balance: 0, base: 0, extras: 0 },
-      ),
-    [salaryRows],
-  );
-
   function openEmployeeForm(employee?: HrEmployee) {
     setEmployeeForm(
       employee
@@ -582,93 +562,15 @@ export function HumanResourcesModule({
       )}
 
       {activeBlock === "salarios" && (
-        <section className="panel">
-          <HrSectionHeading
-            action={
-              <label className="hr-month-filter">
-                Mes
-                <input
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  type="month"
-                  value={selectedMonth}
-                />
-              </label>
-            }
-            eyebrow="Nomina"
-            title="Salarios y anticipos"
-          />
-          <div className="kpi-grid hr-kpi-grid">
-            <HrKpi label="Base salarial" value={money(salaryTotals.base)} />
-            <HrKpi label="Horas extras" value={money(salaryTotals.extras)} />
-            <HrKpi
-              label="Anticipos"
-              tone="warning"
-              value={money(salaryTotals.advances)}
-            />
-            <HrKpi
-              label="Saldo restante"
-              tone="blue"
-              value={money(salaryTotals.balance)}
-            />
-          </div>
-          <div className="table-wrap hr-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Funcionario</th>
-                  <th>Sector</th>
-                  <th>Modalidad</th>
-                  <th>Base salarial</th>
-                  <th>Horas extras</th>
-                  <th>Anticipos</th>
-                  <th>Descuentos</th>
-                  <th>Saldo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salaryRows.map(({ calculation, employee }) => (
-                  <tr key={employee.id}>
-                    <td><strong>{employee.fullName}</strong></td>
-                    <td>{employee.department || "Sin sector"}</td>
-                    <td>{salaryTypeLabel(employee.salaryType)}</td>
-                    <td>{money(calculation.base)}</td>
-                    <td>{money(calculation.extras)}</td>
-                    <td>{money(calculation.advances)}</td>
-                    <td>{money(calculation.discounts)}</td>
-                    <td className="positive-amount">{money(calculation.balance)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="hr-subsection-heading">
-            <div>
-              <p className="eyebrow">Movimientos</p>
-              <h3>Anticipos registrados</h3>
-            </div>
-            <span>{selectedMonth}</span>
-          </div>
-          <HrRecordsTable
-            columns={[
-              "Fecha",
-              "Funcionario",
-              "Monto",
-              "Motivo",
-              "Medio",
-              "Autorizado por",
-            ]}
-            rows={hrData.advances
-              .filter((advance) => advance.month === selectedMonth)
-              .map((advance) => [
-                formatDate(advance.date),
-                employeeName(advance.employeeId, employees),
-                money(advance.amount),
-                advance.reason || "-",
-                advance.method || "-",
-                advance.approvedBy || "-",
-              ])}
-          />
-        </section>
+        <HrPayrollPanel
+          canEdit={canEdit}
+          data={hrData}
+          employees={employees}
+          money={money}
+          onRefresh={refreshHrData}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+        />
       )}
 
       {activeBlock === "reportes" && (
@@ -823,7 +725,8 @@ export function HumanResourcesModule({
               <strong>{employees.length} funcionarios</strong>
               <small>
                 {hrData.sectors.length} sectores | {hrData.attendance.length} asistencias |
-                {" "}{hrData.events.length} novedades | {hrData.advances.length} anticipos
+                {" "}{hrData.events.length} novedades | {hrData.advances.length} anticipos |
+                {" "}{hrData.payments.length} pagos
               </small>
             </div>
           </div>
@@ -1280,14 +1183,20 @@ function HrReports({
         "Extras",
         "Anticipos",
         "Descuentos",
-        "Saldo",
+        "Neto",
+        "Pagado",
+        "Pendiente",
       ],
       description: hrReports.find((item) => item.id === reportId)!.description,
       kpis: [
         { label: "Base salarial", value: money(totals.base) },
         { label: "Anticipos", tone: "warning" as const, value: money(totals.advances) },
         { label: "Descuentos", tone: "warning" as const, value: money(totals.discounts) },
-        { label: "Saldo a pagar", tone: "blue" as const, value: money(totals.balance) },
+        {
+          label: "Saldo neto",
+          tone: "blue" as const,
+          value: money(totals.balance),
+        },
       ],
       rows: payrollRows.map(({ calculation, employee }) => [
         employee.fullName,
@@ -1298,6 +1207,8 @@ function HrReports({
         money(calculation.advances),
         money(calculation.discounts),
         money(calculation.balance),
+        money(calculation.paid),
+        money(calculation.pending),
       ]),
       title: "Liquidacion de nomina",
     };
@@ -2013,67 +1924,6 @@ function documentStatus(document: HrData["documents"][number]) {
     return "Vencido";
   }
   return document.status || "Pendiente";
-}
-
-function calculateEmployeePayroll(
-  employee: HrEmployee,
-  month: string,
-  data: HrData,
-) {
-  const payroll = data.payroll.find(
-    (record) => record.employeeId === employee.id && record.month === month,
-  );
-  const attendance = data.attendance.filter(
-    (record) =>
-      record.employeeId === employee.id &&
-      record.attendanceDate.startsWith(month),
-  );
-  const presentDays = attendance.filter((record) =>
-    normalizeText(record.status).includes("presente"),
-  ).length;
-  const base =
-    employee.salaryType === "jornal"
-      ? presentDays * employee.dailyWage
-      : payroll?.salary || employee.monthlySalary;
-  const attendanceExtraHours = attendance.reduce(
-    (sum, record) => sum + record.extraHours,
-    0,
-  );
-  const approvedExtraHours = data.events
-    .filter(
-      (event) =>
-        event.employeeId === employee.id &&
-        event.dateFrom.startsWith(month) &&
-        normalizeText(event.eventType).includes("extra") &&
-        !normalizeText(event.status).includes("rechaz"),
-    )
-    .reduce((sum, event) => sum + event.hours, 0);
-  const extras =
-    (attendanceExtraHours + approvedExtraHours) * (payroll?.extraRate ?? 0);
-  const advances = data.advances
-    .filter(
-      (advance) =>
-        advance.employeeId === employee.id && advance.month === month,
-    )
-    .reduce((sum, advance) => sum + advance.amount, 0);
-  const eventDiscounts = data.events
-    .filter(
-      (event) =>
-        event.employeeId === employee.id &&
-        event.dateFrom.startsWith(month) &&
-        !normalizeText(event.status).includes("rechaz"),
-    )
-    .reduce((sum, event) => sum + event.discount, 0);
-  const discounts = eventDiscounts + (payroll?.otherDiscounts ?? 0);
-  const otherIncome = payroll?.otherIncome ?? 0;
-
-  return {
-    advances,
-    balance: base + extras + otherIncome - advances - discounts,
-    base,
-    discounts,
-    extras,
-  };
 }
 
 function normalizeText(value: string) {

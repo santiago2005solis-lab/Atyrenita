@@ -8,6 +8,7 @@ import {
   hrEmployeeFromRow,
   hrEventFromRow,
   hrPayrollFromRow,
+  hrSalaryPaymentFromRow,
   hrSectorFromRow,
   hrTransferFromRow,
 } from "@/lib/hr-mappers";
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
       eventRows,
       advanceRows,
       payrollRows,
+      paymentRows,
       documentRows,
       consultationRows,
     ] = await Promise.all([
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
       supabaseSelect<Record<string, unknown>[]>(
         "hr_payroll?select=*&order=payroll_month.desc",
       ),
+      optionalSelect("hr_salary_payments?select=*&order=payment_date.desc"),
       supabaseSelect<Record<string, unknown>[]>(
         "hr_documents?select=*&order=delivery_date.desc",
       ),
@@ -73,6 +76,7 @@ export async function GET(request: NextRequest) {
       employees: employeeRows.map(hrEmployeeFromRow),
       events: eventRows.map(hrEventFromRow),
       payroll: payrollRows.map(hrPayrollFromRow),
+      payments: paymentRows.map(hrSalaryPaymentFromRow),
       sectors: sectorRows.map(hrSectorFromRow),
       transfers: transferRows.map(hrTransferFromRow),
     };
@@ -88,5 +92,20 @@ export async function GET(request: NextRequest) {
       },
       { status: 409 },
     );
+  }
+}
+
+async function optionalSelect(path: string) {
+  try {
+    return await supabaseSelect<Record<string, unknown>[]>(path);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (
+      message.includes("PGRST205") ||
+      message.includes("hr_salary_payments")
+    ) {
+      return [];
+    }
+    throw error;
   }
 }

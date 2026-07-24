@@ -57,6 +57,7 @@ export type HrAdvance = {
   method: string;
   month: string;
   reason: string;
+  status: "activo" | "anulado";
 };
 
 export type HrPayroll = {
@@ -68,6 +69,18 @@ export type HrPayroll = {
   otherDiscounts: number;
   otherIncome: number;
   salary: number;
+};
+
+export type HrSalaryPayment = {
+  amount: number;
+  date: string;
+  employeeId: string;
+  id: string;
+  method: string;
+  month: string;
+  notes: string;
+  reference: string;
+  status: "confirmado" | "anulado";
 };
 
 export type HrDocument = {
@@ -101,6 +114,7 @@ export type HrData = {
   employees: HrEmployee[];
   events: HrEvent[];
   payroll: HrPayroll[];
+  payments: HrSalaryPayment[];
   sectors: HrSector[];
   transfers: HrTransfer[];
 };
@@ -113,6 +127,7 @@ export const emptyHrData: HrData = {
   employees: [],
   events: [],
   payroll: [],
+  payments: [],
   sectors: [],
   transfers: [],
 };

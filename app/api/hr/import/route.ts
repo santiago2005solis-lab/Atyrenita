@@ -141,11 +141,15 @@ export async function POST(request: NextRequest) {
 
     const transferRows = records(backup.transfers).map((record) => ({
       boss: nullableText(record.boss),
+      created_by_name: nullableText(record.createdBy),
       employee_id: mappedEmployeeId(record.employeeId, employeeIdMap),
+      from_boss: nullableText(record.fromBoss),
+      from_role: nullableText(record.fromRole),
       from_sector_id: nullableText(record.fromSector),
       id: requiredText(record.id),
       notes: nullableText(record.notes),
       reason: nullableText(record.reason),
+      to_role: nullableText(record.toRole),
       to_sector_id: requiredText(record.toSector),
       transfer_date: requiredDate(record.date),
     }));

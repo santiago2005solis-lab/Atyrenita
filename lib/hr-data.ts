@@ -11,12 +11,16 @@ export type HrSector = {
 
 export type HrTransfer = {
   boss: string;
+  createdBy: string;
   date: string;
   employeeId: string;
+  fromBoss: string;
+  fromRole: string;
   fromSectorId: string;
   id: string;
   notes: string;
   reason: string;
+  toRole: string;
   toSectorId: string;
 };
 

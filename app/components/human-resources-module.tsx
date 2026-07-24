@@ -18,6 +18,7 @@ import { HrDocumentsPanel } from "@/app/components/hr-documents-panel";
 import { HrEventsPanel } from "@/app/components/hr-events-panel";
 import { HrPayrollPanel } from "@/app/components/hr-payroll-panel";
 import { HrSectorsPanel } from "@/app/components/hr-sectors-panel";
+import { HrTransfersPanel } from "@/app/components/hr-transfers-panel";
 import { calculateEmployeePayroll } from "@/lib/hr-payroll";
 
 type HrBlockId =
@@ -59,7 +60,7 @@ const hrBlocks: Array<{ id: HrBlockId; label: string }> = [
   { id: "resumen", label: "Panel general" },
   { id: "funcionarios", label: "Funcionarios" },
   { id: "sectores", label: "Sectores y jefaturas" },
-  { id: "cambios", label: "Cambios de sector" },
+  { id: "cambios", label: "Cambios y cargos" },
   { id: "asistencia", label: "Asistencia" },
   { id: "novedades", label: "Permisos y novedades" },
   { id: "salarios", label: "Salarios y anticipos" },
@@ -587,25 +588,12 @@ export function HumanResourcesModule({
       )}
 
       {activeBlock === "cambios" && (
-        <HrOperationalTable
-          columns={[
-            "Fecha",
-            "Funcionario",
-            "Sector anterior",
-            "Nuevo sector",
-            "Jefe",
-            "Motivo",
-          ]}
-          eyebrow="Historial"
-          rows={hrData.transfers.map((transfer) => [
-            formatDate(transfer.date),
-            employeeName(transfer.employeeId, employees),
-            sectorName(transfer.fromSectorId, hrData.sectors),
-            sectorName(transfer.toSectorId, hrData.sectors),
-            transfer.boss || "-",
-            transfer.reason || "-",
-          ])}
-          title="Cambios de sector"
+        <HrTransfersPanel
+          canEdit={canEdit}
+          employees={employees}
+          onRefresh={refreshHrData}
+          sectors={hrData.sectors}
+          transfers={hrData.transfers}
         />
       )}
       {activeBlock === "asistencia" && (
@@ -775,6 +763,7 @@ export function HumanResourcesModule({
                   <label>
                     Sector
                     <input
+                      disabled={Boolean(employeeForm.id)}
                       list="hr-sector-options"
                       onChange={(event) =>
                         setEmployeeForm((current) => ({
@@ -794,6 +783,7 @@ export function HumanResourcesModule({
                   <label>
                     Cargo
                     <input
+                      disabled={Boolean(employeeForm.id)}
                       onChange={(event) =>
                         setEmployeeForm((current) => ({
                           ...current,
@@ -1863,11 +1853,6 @@ function employeeSector(employeeId: string, employees: HrEmployee[]) {
     employees.find((employee) => employee.id === employeeId)?.department ||
     "Sin sector"
   );
-}
-
-function sectorName(sectorId: string, sectors: HrSector[]) {
-  if (!sectorId) return "-";
-  return sectors.find((sector) => sector.id === sectorId)?.name ?? sectorId;
 }
 
 function workedHours(attendance: HrData["attendance"][number]) {

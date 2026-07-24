@@ -46,12 +46,16 @@ export function hrSectorFromRow(row: Row): HrSector {
 export function hrTransferFromRow(row: Row): HrTransfer {
   return {
     boss: stringValue(row.boss),
+    createdBy: stringValue(row.created_by_name),
     date: stringValue(row.transfer_date),
     employeeId: stringValue(row.employee_id),
+    fromBoss: stringValue(row.from_boss),
+    fromRole: stringValue(row.from_role),
     fromSectorId: stringValue(row.from_sector_id),
     id: stringValue(row.id),
     notes: stringValue(row.notes),
     reason: stringValue(row.reason),
+    toRole: stringValue(row.to_role),
     toSectorId: stringValue(row.to_sector_id),
   };
 }

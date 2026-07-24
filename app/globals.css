@@ -2262,6 +2262,147 @@ th:last-child {
   justify-self: start;
 }
 
+.hr-transfer-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.hr-transfer-panel > .hr-section-heading {
+  margin-bottom: 0;
+}
+
+.hr-transfer-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hr-transfer-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hr-transfer-kpis article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.hr-transfer-kpis span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-transfer-kpis strong {
+  color: var(--green-dark);
+  font-size: 1.35rem;
+}
+
+.hr-transfer-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(160px, 0.65fr) minmax(170px, 0.7fr) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.hr-transfer-filters > * {
+  min-width: 0;
+}
+
+.hr-transfer-table table {
+  min-width: 1180px;
+}
+
+.hr-transfer-table td {
+  vertical-align: top;
+}
+
+.hr-transfer-table td > small,
+.hr-transfer-table td > strong + small {
+  display: block;
+  margin-top: 4px;
+  max-width: 250px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-transfer-change {
+  display: grid;
+  gap: 3px;
+  min-width: 150px;
+}
+
+.hr-transfer-change small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.hr-transfer-change.changed small {
+  text-decoration: line-through;
+}
+
+.hr-transfer-change strong {
+  overflow: hidden;
+  max-width: 230px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-transfer-change.changed strong {
+  color: var(--green-dark);
+}
+
+.hr-transfer-modal {
+  width: min(780px, 100%);
+}
+
+.hr-transfer-current {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--green-soft);
+}
+
+.hr-transfer-current > div {
+  min-width: 0;
+}
+
+.hr-transfer-current span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.hr-transfer-current strong {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hr-sector-modal {
   width: min(720px, 100%);
 }
@@ -3407,6 +3548,10 @@ th:last-child {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .hr-transfer-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hr-quality-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3547,6 +3692,11 @@ th:last-child {
     justify-content: flex-start;
   }
 
+  .hr-transfer-heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .hr-payroll-heading-actions .hr-month-filter {
     flex: 1 1 180px;
   }
@@ -3628,6 +3778,15 @@ th:last-child {
   .hr-payroll-filters,
   .hr-payroll-kpis {
     grid-template-columns: 1fr;
+  }
+
+  .hr-transfer-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-transfer-kpis,
+  .hr-transfer-current {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hr-events-heading-actions button,

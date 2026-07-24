@@ -454,8 +454,7 @@ export function HrPayrollPanel({
                     <td>
                       {money(row.calculation.extras)}
                       <small>
-                        {decimal(row.calculation.extraHours)} h x{" "}
-                        {money(row.calculation.extraRate)}
+                        {decimal(row.calculation.extraHours)} h reconocidas
                       </small>
                     </td>
                     <td>{money(row.calculation.otherIncome)}</td>

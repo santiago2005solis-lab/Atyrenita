@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { HrEmployee } from "@/lib/company-data";
-import type { HrEvent } from "@/lib/hr-data";
+import type { HrEvent, HrPayroll } from "@/lib/hr-data";
 
 type EventForm = {
   dateFrom: string;
@@ -10,6 +10,7 @@ type EventForm = {
   discount: string;
   employeeId: string;
   eventType: string;
+  extraRate: string;
   hours: string;
   id: string;
   justification: string;
@@ -37,6 +38,7 @@ export function HrEventsPanel({
   events,
   money,
   onRefresh,
+  payroll,
   selectedMonth,
   setSelectedMonth,
 }: {
@@ -46,6 +48,7 @@ export function HrEventsPanel({
   events: HrEvent[];
   money: (value: number) => string;
   onRefresh: () => Promise<void>;
+  payroll: HrPayroll[];
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
 }) {
@@ -118,20 +121,37 @@ export function HrEventsPanel({
     const approved = monthlyEvents.filter((event) =>
       statusIs(event.status, "Aprobado"),
     );
+    const approvedExtraEvents = approved.filter((event) =>
+      isExtraHoursEvent(event.eventType),
+    );
     return {
       approved: approved.length,
-      approvedDays: approved
-        .filter((event) => !normalizeText(event.eventType).includes("extra"))
-        .reduce(
-          (sum, event) => sum + eventDays(event.dateFrom, event.dateTo),
-          0,
-        ),
       discounts: approved.reduce((sum, event) => sum + event.discount, 0),
+      extraHours: approvedExtraEvents.reduce(
+        (sum, event) => sum + event.hours,
+        0,
+      ),
+      extraPay: approvedExtraEvents.reduce(
+        (sum, event) => sum + eventExtraPay(event, payroll),
+        0,
+      ),
       pending: monthlyEvents.filter((event) =>
         statusIs(event.status, "Pendiente"),
       ).length,
     };
-  }, [monthlyEvents]);
+  }, [monthlyEvents, payroll]);
+
+  const formPayrollRate = useMemo(
+    () =>
+      payroll.find(
+        (record) =>
+          record.employeeId === form.employeeId &&
+          record.month === form.dateFrom.slice(0, 7),
+      )?.extraRate ?? 0,
+    [form.dateFrom, form.employeeId, payroll],
+  );
+  const formExtraRate = Number(form.extraRate) || formPayrollRate;
+  const formExtraTotal = (Number(form.hours) || 0) * formExtraRate;
 
   function openNewEvent() {
     setForm(emptyEventForm());
@@ -147,6 +167,7 @@ export function HrEventsPanel({
       discount: String(event.discount || 0),
       employeeId: event.employeeId,
       eventType: displayEventType(event.eventType),
+      extraRate: String(event.extraRate || 0),
       hours: String(event.hours || 0),
       id: event.id,
       justification: event.justification,
@@ -190,6 +211,7 @@ export function HrEventsPanel({
         discount: event.discount,
         employeeId: event.employeeId,
         eventType: event.eventType,
+        extraRate: event.extraRate,
         hours: event.hours,
         id: event.id,
         justification: event.justification,
@@ -276,7 +298,15 @@ export function HrEventsPanel({
         <div className="hr-event-kpis">
           <EventKpi label="Pendientes" tone="warning" value={String(totals.pending)} />
           <EventKpi label="Aprobadas" tone="success" value={String(totals.approved)} />
-          <EventKpi label="Días aprobados" value={String(totals.approvedDays)} />
+          <EventKpi
+            label="Horas extra aprobadas"
+            value={decimal(totals.extraHours)}
+          />
+          <EventKpi
+            label="Pago extra aprobado"
+            tone="success"
+            value={money(totals.extraPay)}
+          />
           <EventKpi
             label="Descuentos aprobados"
             tone="danger"
@@ -341,6 +371,7 @@ export function HrEventsPanel({
                 <th>Goce</th>
                 <th>Motivo</th>
                 <th>Descuento</th>
+                <th>Pago extra</th>
                 <th>Estado</th>
                 {(canEdit || canAdmin) && <th>Acciones</th>}
               </tr>
@@ -374,7 +405,29 @@ export function HrEventsPanel({
                       {event.justification && <small>{event.justification}</small>}
                     </td>
                     <td className={event.discount > 0 ? "negative-amount" : ""}>
-                      {money(event.discount)}
+                      {isExtraHoursEvent(event.eventType)
+                        ? "-"
+                        : money(event.discount)}
+                    </td>
+                    <td
+                      className={
+                        isExtraHoursEvent(event.eventType)
+                          ? "positive-amount"
+                          : ""
+                      }
+                    >
+                      {isExtraHoursEvent(event.eventType) ? (
+                        <>
+                          <strong>{money(eventExtraPay(event, payroll))}</strong>
+                          <small>
+                            {effectiveExtraRate(event, payroll) > 0
+                              ? `${money(effectiveExtraRate(event, payroll))} / h`
+                              : "Tarifa no definida"}
+                          </small>
+                        </>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td>
                       <span
@@ -441,7 +494,7 @@ export function HrEventsPanel({
                 <tr>
                   <td
                     className="hr-empty-cell"
-                    colSpan={canEdit || canAdmin ? 9 : 8}
+                    colSpan={canEdit || canAdmin ? 10 : 9}
                   >
                     No hay novedades para los filtros seleccionados.
                   </td>
@@ -560,7 +613,9 @@ export function HrEventsPanel({
                   />
                 </label>
                 <label>
-                  Horas
+                  {isExtraHoursEvent(form.eventType)
+                    ? "Horas extra"
+                    : "Horas asociadas"}
                   <input
                     min="0"
                     onChange={(event) =>
@@ -574,21 +629,61 @@ export function HrEventsPanel({
                     value={form.hours}
                   />
                 </label>
-                <label>
-                  Descuento
-                  <input
-                    min="0"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        discount: event.target.value,
-                      }))
-                    }
-                    step="1"
-                    type="number"
-                    value={form.discount}
-                  />
-                </label>
+                {isExtraHoursEvent(form.eventType) ? (
+                  <label>
+                    Valor por hora extra
+                    <input
+                      min="0"
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          extraRate: event.target.value,
+                        }))
+                      }
+                      placeholder={
+                        formPayrollRate > 0
+                          ? `Tarifa mensual: ${money(formPayrollRate)}`
+                          : "Ingrese el valor por hora"
+                      }
+                      step="1"
+                      type="number"
+                      value={form.extraRate}
+                    />
+                    <small>
+                      {Number(form.extraRate) > 0
+                        ? "Tarifa específica para esta novedad."
+                        : formPayrollRate > 0
+                          ? `Se usará la tarifa mensual de ${money(formPayrollRate)}.`
+                          : "Debe definir aquí la tarifa o configurarla en la liquidación."}
+                    </small>
+                  </label>
+                ) : (
+                  <label>
+                    Descuento
+                    <input
+                      min="0"
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          discount: event.target.value,
+                        }))
+                      }
+                      step="1"
+                      type="number"
+                      value={form.discount}
+                    />
+                  </label>
+                )}
+                {isExtraHoursEvent(form.eventType) && (
+                  <div className="hr-event-extra-total hr-span-2">
+                    <span>Total estimado de horas extra</span>
+                    <strong>{money(formExtraTotal)}</strong>
+                    <small>
+                      {decimal(Number(form.hours) || 0)} horas ×{" "}
+                      {money(formExtraRate)}
+                    </small>
+                  </div>
+                )}
                 <label className="hr-span-2">
                   Motivo
                   <input
@@ -683,6 +778,7 @@ function emptyEventForm(): EventForm {
     discount: "0",
     employeeId: "",
     eventType: eventTypes[0],
+    extraRate: "0",
     hours: "0",
     id: "",
     justification: "",
@@ -697,6 +793,9 @@ function eventBody(form: EventForm): Record<string, unknown> {
   return {
     ...form,
     discount: Number(form.discount) || 0,
+    extraRate: isExtraHoursEvent(form.eventType)
+      ? Number(form.extraRate) || 0
+      : 0,
     hours: Number(form.hours) || 0,
   };
 }
@@ -724,6 +823,25 @@ function overlapsMonth(from: string, to: string, month: string) {
   const monthStart = `${month}-01`;
   const monthEnd = `${month}-31`;
   return from <= monthEnd && (to || from) >= monthStart;
+}
+
+function effectiveExtraRate(event: HrEvent, payroll: HrPayroll[]) {
+  if (event.extraRate > 0) return event.extraRate;
+  return (
+    payroll.find(
+      (record) =>
+        record.employeeId === event.employeeId &&
+        record.month === event.dateFrom.slice(0, 7),
+    )?.extraRate ?? 0
+  );
+}
+
+function eventExtraPay(event: HrEvent, payroll: HrPayroll[]) {
+  return event.hours * effectiveExtraRate(event, payroll);
+}
+
+function isExtraHoursEvent(value: string) {
+  return normalizeText(value).includes("hora extra");
 }
 
 function eventDays(from: string, to: string) {

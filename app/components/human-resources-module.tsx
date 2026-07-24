@@ -625,6 +625,7 @@ export function HumanResourcesModule({
           events={hrData.events}
           money={money}
           onRefresh={refreshHrData}
+          payroll={hrData.payroll}
           selectedMonth={selectedMonth}
           setSelectedMonth={setSelectedMonth}
         />
@@ -1057,6 +1058,7 @@ function HrReports({
           "Estado",
           "Dias",
           "Horas",
+          "Pago extra",
           "Descuento",
         ],
         description: hrReports.find((item) => item.id === reportId)!.description,
@@ -1082,6 +1084,18 @@ function HrReports({
           event.status,
           eventDays(event.dateFrom, event.dateTo),
           decimal(event.hours),
+          normalizeText(event.eventType).includes("hora extra")
+            ? money(
+                event.hours *
+                  (event.extraRate ||
+                    data.payroll.find(
+                      (payroll) =>
+                        payroll.employeeId === event.employeeId &&
+                        payroll.month === event.dateFrom.slice(0, 7),
+                    )?.extraRate ||
+                    0),
+              )
+            : "-",
           money(event.discount),
         ]),
         title: "Permisos y novedades",

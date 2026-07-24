@@ -1,3 +1,7 @@
+alter table public.hr_events
+  add column if not exists extra_rate numeric(16, 2) not null default 0
+  check (extra_rate >= 0);
+
 alter table public.hr_advances
   add column if not exists status text not null default 'activo';
 

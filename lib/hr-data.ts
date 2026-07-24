@@ -39,6 +39,7 @@ export type HrEvent = {
   discount: number;
   employeeId: string;
   eventType: string;
+  extraRate: number;
   hours: number;
   id: string;
   justification: string;

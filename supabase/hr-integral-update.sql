@@ -85,6 +85,7 @@ create table if not exists public.hr_events (
   date_from date not null,
   date_to date,
   hours numeric(8, 2) not null default 0,
+  extra_rate numeric(16, 2) not null default 0,
   paid text,
   reason text,
   justification text,

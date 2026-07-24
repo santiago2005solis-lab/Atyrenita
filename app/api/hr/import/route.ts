@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
       discount: numberValue(record.discount),
       employee_id: mappedEmployeeId(record.employeeId, employeeIdMap),
       event_type: requiredText(record.type),
+      extra_rate: numberValue(record.extraRate),
       hours: numberValue(record.hours),
       id: requiredText(record.id),
       justification: nullableText(record.justification),

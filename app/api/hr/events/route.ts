@@ -30,6 +30,7 @@ type EventBody = {
   discount?: number;
   employeeId?: string;
   eventType?: string;
+  extraRate?: number;
   hours?: number;
   id?: string;
   justification?: string;
@@ -153,10 +154,12 @@ export async function PATCH(request: NextRequest) {
 }
 
 function eventToRow(body: EventBody) {
-  return {
+  const row: Record<string, unknown> = {
     date_from: cleanText(body.dateFrom),
     date_to: cleanText(body.dateTo) || cleanText(body.dateFrom),
-    discount: Math.max(0, Number(body.discount) || 0),
+    discount: isExtraHoursEvent(body.eventType)
+      ? 0
+      : Math.max(0, Number(body.discount) || 0),
     employee_id: cleanText(body.employeeId),
     event_type: canonicalEventType(body.eventType),
     hours: Math.max(0, Number(body.hours) || 0),
@@ -165,6 +168,10 @@ function eventToRow(body: EventBody) {
     paid: cleanText(body.paid) || "No",
     reason: cleanText(body.reason) || null,
   };
+  if (isExtraHoursEvent(body.eventType) || Number(body.extraRate) > 0) {
+    row.extra_rate = Math.max(0, Number(body.extraRate) || 0);
+  }
+  return row;
 }
 
 async function syncEventAttendance(body: EventBody) {
@@ -246,6 +253,12 @@ function validateEvent(body: EventBody) {
   if (Number(body.hours) < 0 || Number(body.discount) < 0) {
     return "Las horas y el descuento no pueden ser negativos.";
   }
+  if (Number(body.extraRate) < 0) {
+    return "El valor de la hora extra no puede ser negativo.";
+  }
+  if (isExtraHoursEvent(body.eventType) && Number(body.hours) <= 0) {
+    return "Ingrese la cantidad de horas extra.";
+  }
   return "";
 }
 
@@ -274,6 +287,10 @@ function attendanceStatusForEvent(value: unknown) {
     return "Reposo";
   }
   return "";
+}
+
+function isExtraHoursEvent(value: unknown) {
+  return normalizeText(cleanText(value)).includes("hora extra");
 }
 
 function dateRange(from: string, to: string) {
@@ -310,12 +327,15 @@ function databaseUnavailable() {
 }
 
 function eventError(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "No se pudo guardar la novedad.";
   return NextResponse.json(
     {
       error:
-        error instanceof Error
-          ? error.message
-          : "No se pudo guardar la novedad.",
+        message.includes("extra_rate") &&
+        (message.includes("schema cache") || message.includes("column"))
+          ? "Falta actualizar la base de datos para registrar el valor de horas extra."
+          : message,
     },
     { status: 400 },
   );

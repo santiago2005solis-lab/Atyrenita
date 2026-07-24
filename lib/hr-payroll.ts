@@ -40,18 +40,25 @@ export function calculateEmployeePayroll(
     (sum, record) => sum + record.extraHours,
     0,
   );
-  const approvedExtraHours = data.events
+  const approvedExtraEvents = data.events
     .filter(
       (event) =>
         event.employeeId === employee.id &&
         event.dateFrom.startsWith(month) &&
         normalizeText(event.eventType).includes("extra") &&
         normalizeText(event.status).includes("aprob"),
-    )
-    .reduce((sum, event) => sum + event.hours, 0);
-  const extraHours = attendanceExtraHours + approvedExtraHours;
+    );
+  const approvedExtraHours = approvedExtraEvents.reduce(
+    (sum, event) => sum + event.hours,
+    0,
+  );
   const extraRate = payroll?.extraRate ?? 0;
-  const extras = extraHours * extraRate;
+  const extraHours = attendanceExtraHours + approvedExtraHours;
+  const eventExtraPay = approvedExtraEvents.reduce(
+    (sum, event) => sum + event.hours * (event.extraRate || extraRate),
+    0,
+  );
+  const extras = attendanceExtraHours * extraRate + eventExtraPay;
   const advances = data.advances
     .filter(
       (advance) =>

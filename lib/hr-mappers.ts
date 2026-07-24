@@ -78,6 +78,7 @@ export function hrEventFromRow(row: Row): HrEvent {
     discount: numberValue(row.discount),
     employeeId: stringValue(row.employee_id),
     eventType: stringValue(row.event_type),
+    extraRate: numberValue(row.extra_rate),
     hours: numberValue(row.hours),
     id: stringValue(row.id),
     justification: stringValue(row.justification),
